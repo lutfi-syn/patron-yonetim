@@ -30,7 +30,8 @@ jobs:
         run: |
           rm -rf android
           npx expo prebuild --platform android --no-install
-          rm -f android/app/src/main/res/drawable/splashscreen.xml
+          rm -rf android/app/src/main/res/drawable* / android/app/src/main/res/mipmap*
+          find android/app/src/main/res/ -type f -name "*.xml" -exec sed -i '/splashscreen/d' {} +
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
