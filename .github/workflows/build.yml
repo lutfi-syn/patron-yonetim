@@ -23,9 +23,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set JAVA_HOME
-        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
-
       - name: Install Node modules
         run: npm install
 
@@ -36,7 +33,7 @@ jobs:
           find android/app/src/main/res/ -type f -name "*.xml" -exec sed -i '/splashscreen/d' {} +
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease -Dorg.gradle.java.home="$JAVA_HOME_17_X64"
+          ./gradlew assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
