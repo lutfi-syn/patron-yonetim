@@ -24,14 +24,14 @@ export default function App() {
   // Modal State'leri
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep'
-  const [duzenleId, setDuzenleId] = useState(null); // Düzenleme Modu için ID
+  const [duzenleId, setDuzenleId] = useState(null);
   
   // Form State'leri
   const [input1, setInput1] = useState('');
   const [input2, setInput2] = useState('');
   const [input3, setInput3] = useState('');
 
-  // Tamamen Boş Başlangıç Verileri
+  // Listeler
   const [kredilerListesi, setKredilerListesi] = useState([]);
   const [bankalarListesi, setBankalarListesi] = useState([]);
   const [alacaklilarListesi, setAlacaklilarListesi] = useState([]);
@@ -40,6 +40,14 @@ export default function App() {
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Sayıları 8.000.000 formatına çeviren yardımcı fonksiyon
+  const paraBicimlendir = (deger) => {
+    if (!deger) return '₺0';
+    const temizSayi = deger.toString().replace(/\D/g, '');
+    if (!temizSayi) return '₺' + deger;
+    return '₺' + Number(temizSayi).toLocaleString('tr-TR');
+  };
 
   useEffect(() => {
     veriYukle();
@@ -74,17 +82,6 @@ export default function App() {
     try { await AsyncStorage.setItem(key, JSON.stringify(data)); } catch (e) { console.log(e); }
   };
 
-  const kalanGunHesapla = (tarihStr) => {
-    if (!tarihStr) return 'Tarih girilmedi';
-    const hedef = new Date(tarihStr);
-    const bugun = new Date();
-    const farkMs = hedef - bugun;
-    const farkGun = Math.ceil(farkMs / (1000 * 60 * 60 * 24));
-    if (farkGun < 0) return 'Vadesi geçti';
-    if (farkGun === 0) return 'Bugün son gün!';
-    return `${farkGun} gün kaldı`;
-  };
-
   // Ekleme veya Güncelleme İşlemi
   const kaydetVeyaGuncelle = () => {
     if (!input1) {
@@ -93,40 +90,38 @@ export default function App() {
     }
 
     if (duzenleId) {
-      // DÜZENLEME MODU
       if (modalType === 'kredi') {
-        const yeni = kredilerListesi.map(x => x.id === duzenleId ? { ...x, baslik: input1, tutar: input2, tarih: input3 } : x);
+        const yeni = kredilerListesi.map(x => x.id === duzenleId ? { ...x, baslik: input1, tutar: paraBicimlendir(input2), taksit: input3 } : x);
         setKredilerListesi(yeni); veriKaydet('@patron_krediler', yeni);
       } else if (modalType === 'banka') {
         const yeni = bankalarListesi.map(x => x.id === duzenleId ? { ...x, isim: input1 } : x);
         setBankalarListesi(yeni); veriKaydet('@patron_bankalar', yeni);
       } else if (modalType === 'alacakli') {
-        const yeni = alacaklilarListesi.map(x => x.id === duzenleId ? { ...x, isim: input1, tutar: input2 } : x);
+        const yeni = alacaklilarListesi.map(x => x.id === duzenleId ? { ...x, isim: input1, tutar: paraBicimlendir(input2) } : x);
         setAlacaklilarListesi(yeni); veriKaydet('@patron_alacaklilar', yeni);
       } else if (modalType === 'mulk') {
-        const yeni = mulklerListesi.map(x => x.id === duzenleId ? { ...x, baslik: input1, tip: input2, fiyat: '₺' + input3 } : x);
+        const yeni = mulklerListesi.map(x => x.id === duzenleId ? { ...x, baslik: input1, tip: input2, fiyat: paraBicimlendir(input3) } : x);
         setMulklerListesi(yeni); veriKaydet('@patron_mulkler', yeni);
       } else if (modalType === 'talep') {
-        const yeni = taleplerListesi.map(x => x.id === duzenleId ? { ...x, musteri: input1, bolge: input2 } : x);
+        const yeni = taleplerListesi.map(x => x.id === duzenleId ? { ...x, musteri: input1, bolge: input2, butce: paraBicimlendir(input3) } : x);
         setTaleplerListesi(yeni); veriKaydet('@patron_talepler', yeni);
       }
     } else {
-      // YENİ EKLEME MODU
       const id = Date.now().toString();
       if (modalType === 'kredi') {
-        const yeni = [...kredilerListesi, { id, baslik: input1, tutar: input2 || '₺0', tarih: input3 || '2026-12-31' }];
+        const yeni = [...kredilerListesi, { id, baslik: input1, tutar: paraBicimlendir(input2), taksit: input3 || '1. Taksit' }];
         setKredilerListesi(yeni); veriKaydet('@patron_krediler', yeni);
       } else if (modalType === 'banka') {
         const yeni = [...bankalarListesi, { id, isim: input1 }];
         setBankalarListesi(yeni); veriKaydet('@patron_bankalar', yeni);
       } else if (modalType === 'alacakli') {
-        const yeni = [...alacaklilarListesi, { id, isim: input1, tutar: input2 || '₺0' }];
+        const yeni = [...alacaklilarListesi, { id, isim: input1, tutar: paraBicimlendir(input2) }];
         setAlacaklilarListesi(yeni); veriKaydet('@patron_alacaklilar', yeni);
       } else if (modalType === 'mulk') {
-        const yeni = [...mulklerListesi, { id, baslik: input1, tip: input2 || 'Konut', detay: 'Özel mülk', fiyat: '₺' + (input3 || '0') }];
+        const yeni = [...mulklerListesi, { id, baslik: input1, tip: input2 || 'Konut', detay: 'Özel mülk', fiyat: paraBicimlendir(input3) }];
         setMulklerListesi(yeni); veriKaydet('@patron_mulkler', yeni);
       } else if (modalType === 'talep') {
-        const yeni = [...taleplerListesi, { id, musteri: input1, bolge: input2 || 'Genel', tip: 'Konut', detay: `${input2 || 'Merkez'} - Talep` }];
+        const yeni = [...taleplerListesi, { id, musteri: input1, bolge: input2 || 'Genel', tip: 'Konut', butce: paraBicimlendir(input3), detay: `${input2 || 'Merkez'} - Talep` }];
         setTaleplerListesi(yeni); veriKaydet('@patron_talepler', yeni);
       }
     }
@@ -144,15 +139,15 @@ export default function App() {
     setModalType(type);
     setDuzenleId(item.id);
     if (type === 'kredi') {
-      setInput1(item.baslik); setInput2(item.tutar); setInput3(item.tarih);
+      setInput1(item.baslik); setInput2(item.tutar.replace(/[^\d]/g, '')); setInput3(item.taksit);
     } else if (type === 'banka') {
       setInput1(item.isim);
     } else if (type === 'alacakli') {
-      setInput1(item.isim); setInput2(item.tutar);
+      setInput1(item.isim); setInput2(item.tutar.replace(/[^\d]/g, ''));
     } else if (type === 'mulk') {
-      setInput1(item.baslik); setInput2(item.tip); setInput3(item.fiyat.replace('₺', ''));
+      setInput1(item.baslik); setInput2(item.tip); setInput3(item.fiyat.replace(/[^\d]/g, ''));
     } else if (type === 'talep') {
-      setInput1(item.musteri); setInput2(item.bolge);
+      setInput1(item.musteri); setInput2(item.bolge); setInput3(item.butce ? item.butce.replace(/[^\d]/g, '') : '');
     }
     setModalVisible(true);
   };
@@ -214,7 +209,7 @@ export default function App() {
             {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? (
               <View style={styles.alertCard}>
                 <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
-                <Text style={styles.alertDesc}>• {taleplerListesi[0].musteri} ({taleplerListesi[0].bolge}) talebi ile portföyünüz eşleşti!</Text>
+                <Text style={styles.alertDesc}>• {taleplerListesi[0].musteri} ({taleplerListesi[0].bolge} - Bütçe: {taleplerListesi[0].butce}) talebi ile portföyünüz eşleşti!</Text>
               </View>
             ) : (
               <View style={styles.emptyCardNotice}>
@@ -225,7 +220,7 @@ export default function App() {
             {kredilerListesi.length > 0 ? (
               <View style={styles.warningCard}>
                 <Text style={styles.warningTitle}>🔔 YAKLAŞAN KREDİ ÖDEMESİ</Text>
-                <Text style={styles.warningDesc}>• {kredilerListesi[0].baslik}: {kredilerListesi[0].tutar} ({kalanGunHesapla(kredilerListesi[0].tarih)})</Text>
+                <Text style={styles.warningDesc}>• {kredilerListesi[0].baslik}: {kredilerListesi[0].tutar} ({kredilerListesi[0].taksit})</Text>
               </View>
             ) : null}
 
@@ -323,7 +318,7 @@ export default function App() {
                     <View key={k.id} style={styles.bankCard}>
                       <View style={{flex: 1}}>
                         <Text style={styles.bankTitle}>{k.baslik}</Text>
-                        <Text style={styles.propertySub}>Tutar: {k.tutar} | Vade: {k.tarih} ({kalanGunHesapla(k.tarih)})</Text>
+                        <Text style={styles.propertySub}>Tutar: {k.tutar} | Taksit: {k.taksit || 'Belirtilmedi'}</Text>
                       </View>
                       <View style={styles.actionRowBtn}>
                         <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('kredi', k)}><Text style={styles.btnTextOrange}>Düzenle</Text></TouchableOpacity>
@@ -445,7 +440,7 @@ export default function App() {
                         </View>
                       </View>
                       <Text style={styles.propertyTitle}>{t.musteri}</Text>
-                      <Text style={styles.propertySub}>Bölge: {t.bolge} | Tür: {t.tip}</Text>
+                      <Text style={styles.propertySub}>Bölge: {t.bolge} | Bütçe: {t.butce || 'Belirtilmedi'}</Text>
                       <Text style={styles.alertDesc}>{t.detay}</Text>
                     </View>
                   ))
@@ -468,8 +463,8 @@ export default function App() {
             {modalType === 'kredi' && (
               <>
                 <TextInput style={styles.input} placeholder="Kredi Adı (Örn: Ofis Kredisi)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
-                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺12.000)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
-                <TextInput style={styles.input} placeholder="Son Ödeme Tarihi (Yıl-Ay-Gün Örn: 2026-12-30)" placeholderTextColor="#666" value={input3} onChangeText={setInput3} />
+                <TextInput style={styles.input} placeholder="Tutar (Örn: 12000)" placeholderTextColor="#666" keyboardType="numeric" value={input2} onChangeText={setInput2} />
+                <TextInput style={styles.input} placeholder="Taksit Bilgisi (Örn: 3. Taksit / 12 Taksit)" placeholderTextColor="#666" value={input3} onChangeText={setInput3} />
               </>
             )}
 
@@ -480,7 +475,7 @@ export default function App() {
             {modalType === 'alacakli' && (
               <>
                 <TextInput style={styles.input} placeholder="Kişi / Kurum Adı (Örn: Mehmet Bey)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
-                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺15.000)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
+                <TextInput style={styles.input} placeholder="Tutar (Örn: 15000)" placeholderTextColor="#666" keyboardType="numeric" value={input2} onChangeText={setInput2} />
               </>
             )}
 
@@ -488,7 +483,7 @@ export default function App() {
               <>
                 <TextInput style={styles.input} placeholder="Mülk Başlığı (Örn: Ören Lüks Villa)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
                 <TextInput style={styles.input} placeholder="Mülk Tipi (Örn: Konut / Zeytinlik)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
-                <TextInput style={styles.input} placeholder="Fiyat (Örn: 3.500.000)" placeholderTextColor="#666" value={input3} onChangeText={setInput3} />
+                <TextInput style={styles.input} placeholder="Fiyat (Örn: 3500000)" placeholderTextColor="#666" keyboardType="numeric" value={input3} onChangeText={setInput3} />
               </>
             )}
 
@@ -496,6 +491,7 @@ export default function App() {
               <>
                 <TextInput style={styles.input} placeholder="Müşteri Adı (Örn: Ali Bey)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
                 <TextInput style={styles.input} placeholder="İstenen Bölge (Örn: Pelitköy)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
+                <TextInput style={styles.input} placeholder="Müşteri Bütçesi (Örn: 3000000)" placeholderTextColor="#666" keyboardType="numeric" value={input3} onChangeText={setInput3} />
               </>
             )}
 
