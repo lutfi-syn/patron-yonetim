@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, SafeAreaStorage } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 
 export default function App() {
   const [veriler, setVeriler] = useState([]);
   const [yazi, setYazi] = useState('');
+  const [importMetni, setImportMetni] = useState('');
 
-  // 1. Uygulama açıldığında telefon hafızasındaki kayıtlı verileri yükle
   useEffect(() => {
     kayitlariYukle();
   }, []);
@@ -19,34 +19,61 @@ export default function App() {
         setVeriler(JSON.parse(kayitliVeri));
       }
     } catch (hata) {
-      console.log('Veri yüklenirken hata oluştu:', hata);
+      console.log('Veri yüklenirken hata:', hata);
     }
   };
 
-  // 2. Yeni veri ekleyip hem hafızaya hem telefona kalıcı kaydet
-  const veriEkle = async () => {
+  const veriyiKaydet = async (yeniListe) => {
+    setVeriler(yeniListe);
+    try {
+      await AsyncStorage.setItem('@patron_veriler', JSON.stringify(yeniListe));
+    } catch (hata) {
+      console.log('Veri kaydedilirken hata:', hata);
+    }
+  };
+
+  const veriEkle = () => {
     if (yazi.trim() === '') return;
-    
     const yeniListe = [...veriler, { id: Date.now().toString(), baslik: yazi }];
-    setVeriler(yeniListe);
+    veriyiKaydet(yeniListe);
     setYazi('');
+  };
 
+  const veriSil = (id) => {
+    const yeniListe = veriler.filter((item) => item.id !== id);
+    veriyiKaydet(yeniListe);
+  };
+
+  // 1. VERİLERİ DIŞA AKTAR (Export & E-posta / Paylaş)
+  const verileriDisariAktar = async () => {
     try {
-      await AsyncStorage.setItem('@patron_veriler', JSON.stringify(yeniListe));
+      const jsonVeri = JSON.stringify(veriler);
+      await Share.share({
+        message: jsonVeri,
+        title: 'Patron Yonetim Yedek Verileri',
+      });
     } catch (hata) {
-      console.log('Veri kaydedilirken hata oluştu:', hata);
+      Alert.alert('Hata', 'Veriler paylaşılırken bir sorun oluştu.');
     }
   };
 
-  // 3. Veriyi silip listeyi güncelle
-  const veriSil = async (id) => {
-    const yeniListe = veriler.filter((item) => item.id !== id);
-    setVeriler(yeniListe);
-
+  // 2. VERİLERİ İÇE AKTAR (Import)
+  const verileriIceriAktar = () => {
     try {
-      await AsyncStorage.setItem('@patron_veriler', JSON.stringify(yeniListe));
+      if (!importMetni.trim()) {
+        Alert.alert('Uyarı', 'Lütfen yedek kodunu alana yapıştırın.');
+        return;
+      }
+      const parseEdilmis = JSON.parse(importMetni);
+      if (Array.isArray(parseEdilmis)) {
+        veriyiKaydet(parseEdilmis);
+        setImportMetni('');
+        Alert.alert('Başarılı', 'Veriler başarıyla yüklendi!');
+      } else {
+        Alert.alert('Hata', 'Geçersiz yedek formatı.');
+      }
     } catch (hata) {
-      console.log('Veri silinirken hata oluştu:', hata);
+      Alert.alert('Hata', 'Yedek kodu okunamadı, metni kontrol edin.');
     }
   };
 
@@ -55,16 +82,23 @@ export default function App() {
       <StatusBar style="light" />
       <Text style={styles.baslik}>PATRON YÖNETİM</Text>
 
+      {/* Veri Paylaşım ve Yükleme Butonları */}
+      <View style={styles.syncContainer}>
+        <TouchableOpacity style={styles.syncButton} onPress={verileriDisariAktar}>
+          <Text style={styles.syncButtonText}>Yedeği Paylaş / Gönder</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Yeni kayıt veya not ekle..."
+          placeholder="Yeni kayıt ekle..."
           placeholderTextColor="#888"
           value={yazi}
           onChangeText={setYazi}
         />
         <TouchableOpacity style={styles.buton} onPress={veriEkle}>
-          <Text style={styles.butonText}>Kaydet</Text>
+          <Text style={styles.butonText}>Ekle</Text>
         </TouchableOpacity>
       </View>
 
@@ -80,6 +114,20 @@ export default function App() {
           </View>
         )}
       />
+
+      {/* İçe Aktarma Alanı */}
+      <View style={styles.importBox}>
+        <TextInput
+          style={styles.input}
+          placeholder="Başka telefondan gelen yedek kodunu buraya yapıştır..."
+          placeholderTextColor="#666"
+          value={importMetni}
+          onChangeText={setImportMetni}
+        />
+        <TouchableOpacity style={[styles.buton, { backgroundColor: '#444', marginTop: 8 }]} onPress={verileriIceriAktar}>
+          <Text style={styles.butonText}>Yedeği Yükle (Import)</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -88,27 +136,40 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#121212',
-    paddingTop: 60,
+    paddingTop: 50,
     paddingHorizontal: 20,
   },
   baslik: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#8A1C14', // Vişne çürüğü kurumsal renk
+    color: '#8A1C14', // Vişne çürüğü
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  syncContainer: {
+    marginBottom: 15,
+  },
+  syncButton: {
+    backgroundColor: '#8A1C14',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  syncButtonText: {
+    color: '#FFF',
+    fontWeight: 'bold',
   },
   inputContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 15,
   },
   input: {
     flex: 1,
     backgroundColor: '#1E1E1E',
     color: '#FFF',
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    height: 50,
+    height: 45,
     borderWidth: 1,
     borderColor: '#333',
   },
@@ -116,10 +177,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#8A1C14',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
     borderRadius: 8,
-    marginLeft: 10,
-    height: 50,
+    marginLeft: 8,
+    height: 45,
   },
   butonText: {
     color: '#FFF',
@@ -128,22 +189,29 @@ const styles = StyleSheet.create({
   itemContainer: {
     flexDirection: 'row',
     backgroundColor: '#1E1E1E',
-    padding: 15,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#333',
   },
   itemText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 15,
     flex: 1,
   },
   silText: {
     color: '#ff5555',
     fontWeight: 'bold',
     marginLeft: 10,
+  },
+  importBox: {
+    marginTop: 10,
+    marginBottom: 30,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#222',
   },
 });
