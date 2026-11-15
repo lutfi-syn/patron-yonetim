@@ -21,23 +21,29 @@ export default function App() {
   const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'bankalar', 'krediler', 'alacaklilar'
   const [portfoySubTab, setPortfoySubTab] = useState('mulkler'); // 'mulkler', 'talepler'
 
-  // Modal ve Form State'leri
+  // Modal State'leri
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalType, setModalType] = useState(''); // 'kredi', 'talep'
+  const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep'
   
-  // Form Alanları
-  const [krediBaslik, setKrediBaslik] = useState('');
-  const [krediTutar, setKrediTutar] = useState('');
-  const [krediTarih, setKrediTarih] = useState('');
-  
-  const [talepMusteri, setTalepMusteri] = useState('');
-  const [talepBolge, setTalepBolge] = useState('');
+  // Form State'leri
+  const [input1, setInput1] = useState('');
+  const [input2, setInput2] = useState('');
+  const [input3, setInput3] = useState('');
 
-  // Listeler (Başlangıç verileri)
+  // Veri Listeleri
   const [kredilerListesi, setKredilerListesi] = useState([
-    { id: '1', baslik: 'Ofis Yatırım Kredisi', tutar: '₺14.200', kalan: '4 gün' }
+    { id: '1', baslik: 'Ofis Yatırım Kredisi', tutar: '₺14.200', tarih: '2026-12-05' }
   ]);
-
+  const [bankalarListesi, setBankalarListesi] = useState([
+    { id: '1', isim: 'Ziraat Bankası (Vadesiz)' }
+  ]);
+  const [alacaklilarListesi, setAlacaklilarListesi] = useState([
+    { id: '1', isim: 'Ahmet Bey', tutar: '₺35.000' }
+  ]);
+  const [mulklerListesi, setMulklerListesi] = useState([
+    { id: '1', baslik: 'Ören Sahil Lüks Konut', tip: 'Konut', detay: 'Bölge: Ören | Ada: 142 | Parsel: 5', fiyat: '₺3.250.000' },
+    { id: '2', baslik: 'Pelitköy Zeytinlik', tip: 'Zeytinlik', detay: 'Bölge: Pelitköy | Ada: 88 | Parsel: 12', fiyat: '₺850.000' }
+  ]);
   const [taleplerListesi, setTaleplerListesi] = useState([
     { id: '1', musteri: 'Ahmet Bey', bolge: 'Ören', tip: 'Konut', detay: 'Ören - Konut talebi' }
   ]);
@@ -45,82 +51,93 @@ export default function App() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Uygulama açıldığında kaydedilmiş verileri yükle
   useEffect(() => {
     veriYukle();
-
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
-
+    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.timing(progressAnim, {
       toValue: 1,
       duration: 1800,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       useNativeDriver: false,
     }).start(() => {
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 150);
+      setTimeout(() => setIsLoading(false), 150);
     });
   }, []);
 
-  // AsyncStorage Veri Okuma
   const veriYukle = async () => {
     try {
-      const kayitliKrediler = await AsyncStorage.getItem('@krediler_listesi');
-      const kayitliTalepler = await AsyncStorage.getItem('@talepler_listesi');
-      if (kayitliKrediler) setKredilerListesi(JSON.parse(kayitliKrediler));
-      if (kayitliTalepler) setTaleplerListesi(JSON.parse(kayitliTalepler));
-    } catch (e) {
-      console.log('Veri yükleme hatası', e);
-    }
+      const k = await AsyncStorage.getItem('@krediler');
+      const b = await AsyncStorage.getItem('@bankalar');
+      const a = await AsyncStorage.getItem('@alacaklilar');
+      const m = await AsyncStorage.getItem('@mulkler');
+      const t = await AsyncStorage.getItem('@talepler');
+      if (k) setKredilerListesi(JSON.parse(k));
+      if (b) setBankalarListesi(JSON.parse(b));
+      if (a) setAlacaklilarListesi(JSON.parse(a));
+      if (m) setMulklerListesi(JSON.parse(m));
+      if (t) setTaleplerListesi(JSON.parse(t));
+    } catch (e) { console.log(e); }
   };
 
-  // AsyncStorage Veri Kaydetme
-  const veriKaydet = async (yeniKrediler, yeniTalepler) => {
-    try {
-      if (yeniKrediler) await AsyncStorage.setItem('@krediler_listesi', JSON.stringify(yeniKrediler));
-      if (yeniTalepler) await AsyncStorage.setItem('@talepler_listesi', JSON.stringify(yeniTalepler));
-    } catch (e) {
-      console.log('Veri kaydetme hatası', e);
-    }
+  const veriKaydet = async (key, data) => {
+    try { await AsyncStorage.setItem(key, JSON.stringify(data)); } catch (e) { console.log(e); }
   };
 
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
+  // Bugüne göre kalan gün hesaplama
+  const kalanGunHesapla = (tarihStr) => {
+    if (!tarihStr) return 'Tarih girilmedi';
+    const hedef = new Date(tarihStr);
+    const bugun = new Date();
+    const farkMs = hedef - bugun;
+    const farkGun = Math.ceil(farkMs / (1000 * 60 * 60 * 24));
+    if (farkGun < 0) return 'Vadesi geçti';
+    if (farkGun === 0) return 'Bugün son gün!';
+    return `${farkGun} gün kaldı`;
+  };
 
   const kayitEkle = () => {
-    if (modalType === 'kredi') {
-      if (!krediBaslik || !krediTutar) {
-        Alert.alert('Eksik Bilgi', 'Lütfen kredi başlığı ve tutarını giriniz.');
-        return;
-      }
-      const yeniListe = [...kredilerListesi, { id: Date.now().toString(), baslik: krediBaslik, tutar: krediTutar, kalan: krediTarih || '1 ay' }];
-      setKredilerListesi(yeniListe);
-      veriKaydet(yeniListe, null);
-      setKrediBaslik(''); setKrediTutar(''); setKrediTarih('');
-    } else if (modalType === 'talep') {
-      if (!talepMusteri || !talepBolge) {
-        Alert.alert('Eksik Bilgi', 'Lütfen müşteri adı ve bölgeyi giriniz.');
-        return;
-      }
-      const yeniListe = [...taleplerListesi, { id: Date.now().toString(), musteri: talepMusteri, bolge: talepBolge, tip: 'Konut', detay: `${talepBolge} - Konut talebi` }];
-      setTaleplerListesi(yeniListe);
-      veriKaydet(null, yeniListe);
-      setTalepMusteri(''); setTalepBolge('');
+    if (!input1) {
+      Alert.alert('Eksik Bilgi', 'Lütfen ana alanı doldurunuz.');
+      return;
     }
+    const id = Date.now().toString();
+    if (modalType === 'kredi') {
+      const yeni = [...kredilerListesi, { id, baslik: input1, tutar: input2 || '₺0', tarih: input3 || '2026-12-31' }];
+      setKredilerListesi(yeni); veriKaydet('@krediler', yeni);
+    } else if (modalType === 'banka') {
+      const yeni = [...bankalarListesi, { id, isim: input1 }];
+      setBankalarListesi(yeni); veriKaydet('@bankalar', yeni);
+    } else if (modalType === 'alacakli') {
+      const yeni = [...alacaklilarListesi, { id, isim: input1, tutar: input2 || '₺0' }];
+      setAlacaklilarListesi(yeni); veriKaydet('@alacaklilar', yeni);
+    } else if (modalType === 'mulk') {
+      const yeni = [...mulklerListesi, { id, baslik: input1, tip: input2 || 'Konut', detay: input3 || 'Özel mülk', fiyat: '₺' + (input3 || '0') }];
+      setMulklerListesi(yeni); veriKaydet('@mulkler', yeni);
+    } else if (modalType === 'talep') {
+      const yeni = [...taleplerListesi, { id, musteri: input1, bolge: input2 || 'Genel', tip: 'Konut', detay: `${input2 || 'Merkez'} - Talep` }];
+      setTaleplerListesi(yeni); veriKaydet('@talepler', yeni);
+    }
+    setInput1(''); setInput2(''); setInput3('');
     setModalVisible(false);
   };
 
-  const krediSil = (id) => {
-    const yeniListe = kredilerListesi.filter(item => item.id !== id);
-    setKredilerListesi(yeniListe);
-    veriKaydet(yeniListe, null);
+  const sil = (type, id) => {
+    if (type === 'kredi') {
+      const yeni = kredilerListesi.filter(x => x.id !== id);
+      setKredilerListesi(yeni); veriKaydet('@krediler', yeni);
+    } else if (type === 'banka') {
+      const yeni = bankalarListesi.filter(x => x.id !== id);
+      setBankalarListesi(yeni); veriKaydet('@bankalar', yeni);
+    } else if (type === 'alacakli') {
+      const yeni = alacaklilarListesi.filter(x => x.id !== id);
+      setAlacaklilarListesi(yeni); veriKaydet('@alacaklilar', yeni);
+    } else if (type === 'mulk') {
+      const yeni = mulklerListesi.filter(x => x.id !== id);
+      setMulklerListesi(yeni); veriKaydet('@mulkler', yeni);
+    } else if (type === 'talep') {
+      const yeni = taleplerListesi.filter(x => x.id !== id);
+      setTaleplerListesi(yeni); veriKaydet('@talepler', yeni);
+    }
   };
 
   if (isLoading) {
@@ -131,7 +148,7 @@ export default function App() {
           <Text style={styles.splashSub}>TOCO TİCARET OFİSİ</Text>
           <Text style={styles.splashLogo}>PATRON</Text>
           <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+            <Animated.View style={[styles.progressFill, { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
           </View>
           <Text style={styles.loadingInfoText}>Sistem ve portföy verileri yükleniyor...</Text>
         </Animated.View>
@@ -147,32 +164,23 @@ export default function App() {
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
           <Text style={styles.subHeaderText}>TOCO Ticaret Ofisi</Text>
-          <View style={styles.patronBox}>
-            <Text style={styles.patronBoxText}>PATRON</Text>
-          </View>
+          <View style={styles.patronBox}><Text style={styles.patronBoxText}>PATRON</Text></View>
         </View>
-
-        <TouchableOpacity style={styles.notificationBadge}>
-          <Text style={styles.notificationText}>🔔 1 Eşleşme</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.notificationBadge}><Text style={styles.notificationText}>🔔 1 Eşleşme</Text></TouchableOpacity>
       </View>
 
-      {/* İçerik Alanı */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ÖZET SEKMESİ */}
         {activeTab === 'ozet' && (
           <View>
             <View style={styles.alertCard}>
               <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
-              <Text style={styles.alertDesc}>
-                • Ahmet Bey (Ören - Konut) talebi ile "Ören Sahil Lüks Konut" eşleşti!
-              </Text>
+              <Text style={styles.alertDesc}>• Ahmet Bey (Ören - Konut) talebi ile "Ören Sahil Lüks Konut" eşleşti!</Text>
             </View>
 
             <View style={styles.warningCard}>
               <Text style={styles.warningTitle}>🔔 YAKLAŞAN KREDİ ÖDEMESİ</Text>
-              <Text style={styles.warningDesc}>
-                • Ofis Yatırım Kredisi: ₺14.200 (4 gün kaldı)
-              </Text>
+              <Text style={styles.warningDesc}>• Ofis Yatırım Kredisi: ₺14.200 (4 gün kaldı)</Text>
             </View>
 
             <View style={styles.row}>
@@ -184,7 +192,7 @@ export default function App() {
               <View style={styles.infoBox}>
                 <Text style={styles.boxLabel}>Toplam Alacak</Text>
                 <Text style={styles.boxValueYellow}>₺35.000</Text>
-                <Text style={styles.boxSub}>1 aktif alacak kaydı</Text>
+                <Text style={styles.boxSub}>{alacaklilarListesi.length} aktif alacak kaydı</Text>
               </View>
             </View>
 
@@ -192,27 +200,31 @@ export default function App() {
             <TouchableOpacity style={styles.primaryButton} onPress={() => setActiveTab('finans')}>
               <Text style={styles.primaryButtonText}>💳 Finans, Alacaklılar &amp; Kredi Yönetimi</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setActiveTab('portfoy')}>
               <Text style={styles.secondaryButtonText}>🏢 Gayrimenkul Portföy &amp; Talep Listesi</Text>
             </TouchableOpacity>
-
-            <View style={styles.statusBox}>
-              <Text style={styles.statusText}>● Yerel Veri &amp; Canlı Eşleşme Motoru Aktif</Text>
-            </View>
+            <View style={styles.statusBox}><Text style={styles.statusText}>● Yerel Veri &amp; Canlı Eşleşme Motoru Aktif</Text></View>
           </View>
         )}
 
+        {/* FİNANS SEKMESİ */}
         {activeTab === 'finans' && (
           <View>
             <View style={styles.rowBetween}>
               <Text style={styles.sectionTitle}>Finans &amp; Alacaklılar</Text>
-              <TouchableOpacity style={styles.miniButton} onPress={() => { setModalType('kredi'); setModalVisible(true); }}>
-                <Text style={styles.miniButtonText}>+ Kredi Ekle</Text>
+              <TouchableOpacity style={styles.miniButton} onPress={() => {
+                if (finansSubTab === 'krediler') { setModalType('kredi'); }
+                else if (finansSubTab === 'bankalar') { setModalType('banka'); }
+                else if (finansSubTab === 'alacaklilar') { setModalType('alacakli'); }
+                else { setModalType('kredi'); }
+                setModalVisible(true);
+              }}>
+                <Text style={styles.miniButtonText}>
+                  {finansSubTab === 'bankalar' ? '+ Banka Ekle' : finansSubTab === 'alacaklilar' ? '+ Alacaklı Ekle' : '+ Kredi Ekle'}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Finans Alt Sekmeler */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subTabContainer}>
               {['genel', 'bankalar', 'krediler', 'alacaklilar'].map((tab) => (
                 <TouchableOpacity
@@ -220,14 +232,12 @@ export default function App() {
                   style={[styles.subTabButton, finansSubTab === tab && styles.subTabActive]}
                   onPress={() => setFinansSubTab(tab)}
                 >
-                  <Text style={[styles.subTabText, finansSubTab === tab && styles.subTextActive]}>
-                    {tab.toUpperCase()}
-                  </Text>
+                  <Text style={[styles.subTabText, finansSubTab === tab && styles.subTextActive]}>{tab.toUpperCase()}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            {/* ÇİZGİ GRAFİK (Aylık Kâr / Zarar Trendi) */}
+            {/* ÇİZGİ GRAFİK */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>Aylık Kâr / Zarar Trendi</Text>
@@ -236,12 +246,12 @@ export default function App() {
               <Text style={styles.chartSub}>Son 6 Aylık Net Performans</Text>
               
               <View style={styles.graphVisualContainer}>
-                <View style={styles.graphLineFake} />
-                <View style={[styles.graphDot, { left: '10%', top: 50 }]}><Text style={styles.dotText}>22k</Text></View>
-                <View style={[styles.graphDot, { left: '30%', top: 45 }]}><Text style={styles.dotText}>28k</Text></View>
-                <View style={[styles.graphDotRed, { left: '50%', top: 75 }]}><Text style={styles.dotTextRed}>-15k</Text></View>
-                <View style={[styles.graphDot, { left: '70%', top: 38 }]}><Text style={styles.dotText}>34k</Text></View>
-                <View style={[styles.graphDot, { left: '90%', top: 30 }]}><Text style={styles.dotText}>48k</Text></View>
+                <View style={styles.graphLineReal} />
+                <View style={[styles.graphDot, { left: '8%', top: 50 }]}><Text style={styles.dotText}>22k</Text></View>
+                <View style={[styles.graphDot, { left: '26%', top: 45 }]}><Text style={styles.dotText}>28k</Text></View>
+                <View style={[styles.graphDotRed, { left: '44%', top: 75 }]}><Text style={styles.dotTextRed}>-15k</Text></View>
+                <View style={[styles.graphDot, { left: '62%', top: 38 }]}><Text style={styles.dotText}>34k</Text></View>
+                <View style={[styles.graphDot, { left: '80%', top: 30 }]}><Text style={styles.dotText}>48k</Text></View>
               </View>
               <View style={styles.graphMonthsRow}>
                 <Text style={styles.monthText}>Haz</Text><Text style={styles.monthText}>Tem</Text>
@@ -255,51 +265,70 @@ export default function App() {
               <Text style={styles.boxValueWhite}>₺248.750</Text>
             </View>
 
-            {/* Krediler Listesi */}
-            {(finansSubTab === 'krediler' || finansSubTab === 'genel') && (
+            {/* İÇERİK LİSTELERİ (Sekmeye Göre Değişir) */}
+            {(finansSubTab === 'genel' || finansSubTab === 'krediler') && (
               <View>
                 <Text style={styles.sectionTitle}>Aktif Krediler &amp; Ödemeler</Text>
                 {kredilerListesi.map((k) => (
                   <View key={k.id} style={styles.bankCard}>
-                    <View>
+                    <View style={{flex: 1}}>
                       <Text style={styles.bankTitle}>{k.baslik}</Text>
-                      <Text style={styles.propertySub}>Tutar: {k.tutar} | Kalan: {k.kalan}</Text>
+                      <Text style={styles.propertySub}>Tutar: {k.tutar} | Vade: {k.tarih} ({kalanGunHesapla(k.tarih)})</Text>
                     </View>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => krediSil(k.id)}>
-                      <Text style={styles.btnTextRed}>Sil</Text>
-                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('kredi', k.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
                   </View>
                 ))}
               </View>
             )}
 
-            <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
-            <View style={styles.bankCard}>
-              <Text style={styles.bankTitle}>Ziraat Bankası (Vadesiz)</Text>
-              <View style={styles.bankActionRow}>
-                <TouchableOpacity style={styles.editBtn}><Text style={styles.btnTextOrange}>Düzenle</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+            {(finansSubTab === 'genel' || finansSubTab === 'bankalar') && (
+              <View>
+                <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
+                {bankalarListesi.map((b) => (
+                  <View key={b.id} style={styles.bankCard}>
+                    <Text style={styles.bankTitle}>{b.isim}</Text>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('banka', b.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                  </View>
+                ))}
               </View>
-            </View>
+            )}
+
+            {(finansSubTab === 'genel' || finansSubTab === 'alacaklilar') && (
+              <View>
+                <Text style={styles.sectionTitle}>Alacaklılar Listesi</Text>
+                {alacaklilarListesi.map((a) => (
+                  <View key={a.id} style={styles.bankCard}>
+                    <View>
+                      <Text style={styles.bankTitle}>{a.isim}</Text>
+                      <Text style={styles.propertySub}>Alacak Tutarı: {a.tutar}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('alacakli', a.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
+        {/* PORTFÖY & TALEP SEKMESİ */}
         {activeTab === 'portfoy' && (
           <View>
             <View style={styles.rowBetween}>
               <Text style={styles.sectionTitle}>Portföy &amp; Talep Yönetimi</Text>
-              <TouchableOpacity style={styles.miniButtonRed} onPress={() => { setModalType('talep'); setModalVisible(true); }}>
-                <Text style={styles.miniButtonText}>+ Talep Ekle</Text>
+              <TouchableOpacity style={styles.miniButtonRed} onPress={() => {
+                setModalType(portfoySubTab === 'mulkler' ? 'mulk' : 'talep');
+                setModalVisible(true);
+              }}>
+                <Text style={styles.miniButtonText}>{portfoySubTab === 'mulkler' ? '+ Mülk Ekle' : '+ Talep Ekle'}</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Portföy Alt Sekmeler */}
             <View style={styles.row}>
               <TouchableOpacity 
                 style={[styles.portfoyTabBtn, portfoySubTab === 'mulkler' && styles.portfoyTabActive]}
                 onPress={() => setPortfoySubTab('mulkler')}
               >
-                <Text style={styles.portfoyTabText}>🏠 Portföy Listesi (2)</Text>
+                <Text style={styles.portfoyTabText}>🏠 Portföy Listesi ({mulklerListesi.length})</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.portfoyTabBtn, portfoySubTab === 'talepler' && styles.portfoyTabActive]}
@@ -311,25 +340,26 @@ export default function App() {
 
             {portfoySubTab === 'mulkler' ? (
               <View>
-                <View style={styles.propertyCard}>
-                  <View style={styles.badgeBlue}><Text style={styles.badgeText}>Konut</Text></View>
-                  <Text style={styles.propertyTitle}>Ören Sahil Lüks Konut</Text>
-                  <Text style={styles.propertySub}>Bölge: Ören | Ada: 142 | Parsel: 5</Text>
-                  <Text style={styles.propertyPrice}>₺3.250.000</Text>
-                </View>
-
-                <View style={styles.propertyCard}>
-                  <View style={styles.badgeGreen}><Text style={styles.badgeText}>Zeytinlik</Text></View>
-                  <Text style={styles.propertyTitle}>Pelitköy Zeytinlik</Text>
-                  <Text style={styles.propertySub}>Bölge: Pelitköy | Ada: 88 | Parsel: 12</Text>
-                  <Text style={styles.propertyPrice}>₺850.000</Text>
-                </View>
+                {mulklerListesi.map((m) => (
+                  <View key={m.id} style={styles.propertyCard}>
+                    <View style={styles.rowBetween}>
+                      <View style={styles.badgeBlue}><Text style={styles.badgeText}>{m.tip}</Text></View>
+                      <TouchableOpacity onPress={() => sil('mulk', m.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                    </View>
+                    <Text style={styles.propertyTitle}>{m.baslik}</Text>
+                    <Text style={styles.propertySub}>{m.detay}</Text>
+                    <Text style={styles.propertyPrice}>{m.fiyat}</Text>
+                  </View>
+                ))}
               </View>
             ) : (
               <View>
                 {taleplerListesi.map((t) => (
                   <View key={t.id} style={styles.propertyCard}>
-                    <View style={styles.badgeRed}><Text style={styles.badgeText}>Talep</Text></View>
+                    <View style={styles.rowBetween}>
+                      <View style={styles.badgeRed}><Text style={styles.badgeText}>Talep</Text></View>
+                      <TouchableOpacity onPress={() => sil('talep', t.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                    </View>
                     <Text style={styles.propertyTitle}>{t.musteri}</Text>
                     <Text style={styles.propertySub}>Bölge: {t.bolge} | Tür: {t.tip}</Text>
                     <Text style={styles.alertDesc}>{t.detay}</Text>
@@ -347,29 +377,50 @@ export default function App() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>
-              {modalType === 'kredi' ? 'Yeni Kredi / Ödeme Ekle' : 'Yeni Alıcı Talebi Ekle'}
+              {modalType === 'kredi' && 'Yeni Kredi Ödemesi Ekle'}
+              {modalType === 'banka' && 'Yeni Banka Hesabı Ekle'}
+              {modalType === 'alacakli' && 'Yeni Alacaklı Ekle'}
+              {modalType === 'mulk' && 'Yeni Portföy Mülk Ekle'}
+              {modalType === 'talep' && 'Yeni Alıcı Talebi Ekle'}
             </Text>
 
-            {modalType === 'kredi' ? (
+            {modalType === 'kredi' && (
               <>
-                <TextInput style={styles.input} placeholder="Kredi Başlığı (Örn: Ofis Kredisi)" placeholderTextColor="#666" value={krediBaslik} onChangeText={setKrediBaslik} />
-                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺12.000)" placeholderTextColor="#666" value={krediTutar} onChangeText={setKrediTutar} />
-                <TextInput style={styles.input} placeholder="Kalan Süre (Örn: 5 gün)" placeholderTextColor="#666" value={krediTarih} onChangeText={setKrediTarih} />
+                <TextInput style={styles.input} placeholder="Kredi Adı (Örn: Ofis Kredisi)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
+                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺12.000)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
+                <TextInput style={styles.input} placeholder="Son Ödeme Tarihi (Yıl-Ay-Gün Örn: 2026-12-30)" placeholderTextColor="#666" value={input3} onChangeText={setInput3} />
               </>
-            ) : (
+            )}
+
+            {modalType === 'banka' && (
+              <TextInput style={styles.input} placeholder="Banka Adı ve Türü (Örn: Garanti Vadesiz)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
+            )}
+
+            {modalType === 'alacakli' && (
               <>
-                <TextInput style={styles.input} placeholder="Müşteri Adı (Örn: Mehmet Bey)" placeholderTextColor="#666" value={talepMusteri} onChangeText={setTalepMusteri} />
-                <TextInput style={styles.input} placeholder="Bölge (Örn: Pelitköy / Ören)" placeholderTextColor="#666" value={talepBolge} onChangeText={setTalepBolge} />
+                <TextInput style={styles.input} placeholder="Kişi / Kurum Adı (Örn: Mehmet Bey)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
+                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺15.000)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
+              </>
+            )}
+
+            {modalType === 'mulk' && (
+              <>
+                <TextInput style={styles.input} placeholder="Mülk Başlığı (Örn: Ören Lüks Villa)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
+                <TextInput style={styles.input} placeholder="Mülk Tipi (Örn: Konut / Zeytinlik / Arsa)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
+                <TextInput style={styles.input} placeholder="Fiyat (Örn: 3.500.000)" placeholderTextColor="#666" value={input3} onChangeText={setInput3} />
+              </>
+            )}
+
+            {modalType === 'talep' && (
+              <>
+                <TextInput style={styles.input} placeholder="Müşteri Adı (Örn: Ali Bey)" placeholderTextColor="#666" value={input1} onChangeText={setInput1} />
+                <TextInput style={styles.input} placeholder="İstenen Bölge (Örn: Pelitköy)" placeholderTextColor="#666" value={input2} onChangeText={setInput2} />
               </>
             )}
 
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCancelText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={kayitEkle}>
-                <Text style={styles.modalSaveText}>Kaydet</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setModalVisible(false)}><Text style={styles.modalCancelText}>İptal</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={kayitEkle}><Text style={styles.modalSaveText}>Kaydet</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -396,8 +447,8 @@ const styles = StyleSheet.create({
   splashSub: { color: '#666', fontSize: 11, letterSpacing: 3, fontWeight: '600', marginBottom: 8 },
   splashLogo: { fontSize: 52, fontWeight: '900', color: '#A8002A', letterSpacing: 8, textShadowColor: '#FF1A53', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 22, marginBottom: 28 },
   progressTrack: { width: 240, height: 8, backgroundColor: '#1C1C1C', borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#3D0010' },
-  progressFill: { height: '100%', backgroundColor: '#A8002A', shadowColor: '#FF1A53', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 10, elevation: 6 },
-  loadingInfoText: { color: '#777', fontSize: 11, marginTop: 14, letterSpacing: 0.5 },
+  progressFill: { height: '100%', backgroundColor: '#A8002A' },
+  loadingInfoText: { color: '#777', fontSize: 11, marginTop: 14 },
 
   container: { flex: 1, backgroundColor: '#121212' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#222' },
@@ -408,14 +459,14 @@ const styles = StyleSheet.create({
   notificationBadge: { backgroundColor: '#800020', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   notificationText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   content: { flex: 1, padding: 16 },
-  
+
   alertCard: { backgroundColor: '#1e1111', borderWidth: 1, borderColor: '#800020', borderRadius: 12, padding: 12, marginBottom: 12 },
   alertTitle: { color: '#ff5555', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   alertDesc: { color: '#ddd', fontSize: 13 },
   warningCard: { backgroundColor: '#1e1a11', borderWidth: 1, borderColor: '#b8860b', borderRadius: 12, padding: 12, marginBottom: 16 },
   warningTitle: { color: '#ffd700', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   warningDesc: { color: '#ddd', fontSize: 13 },
-  
+
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   infoBox: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, marginHorizontal: 4 },
@@ -425,7 +476,7 @@ const styles = StyleSheet.create({
   boxValueYellow: { color: '#ffd700', fontSize: 20, fontWeight: 'bold', marginBottom: 2 },
   boxValueWhite: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   boxSub: { color: '#777', fontSize: 10 },
-  
+
   sectionTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 12, marginTop: 4 },
   primaryButton: { backgroundColor: '#800020', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
   primaryButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
@@ -433,7 +484,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: '#4da6ff', fontWeight: 'bold', fontSize: 13 },
   statusBox: { backgroundColor: '#0d1f12', borderWidth: 1, borderColor: '#1b4d2b', borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 8, marginBottom: 20 },
   statusText: { color: '#2ecc71', fontSize: 12, fontWeight: 'bold' },
-  
+
   miniButton: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   miniButtonRed: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   miniButtonText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
@@ -454,7 +505,7 @@ const styles = StyleSheet.create({
   profitBadge: { backgroundColor: '#1b4d2b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   profitBadgeText: { color: '#00ff7f', fontSize: 11, fontWeight: 'bold' },
   graphVisualContainer: { height: 70, position: 'relative', justifyContent: 'center', marginVertical: 5 },
-  graphLineFake: { position: 'absolute', top: '50%', left: 0, right: 0, height: 2, backgroundColor: '#333' },
+  graphLineReal: { position: 'absolute', top: '50%', left: '10%', right: '15%', height: 2, backgroundColor: '#4da6ff' },
   graphDot: { position: 'absolute', width: 22, height: 16, backgroundColor: '#1e3a5f', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   graphDotRed: { position: 'absolute', width: 24, height: 16, backgroundColor: '#800020', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   dotText: { color: '#4da6ff', fontSize: 9, fontWeight: 'bold' },
@@ -464,15 +515,11 @@ const styles = StyleSheet.create({
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   bankTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  bankActionRow: { flexDirection: 'row' },
-  editBtn: { paddingHorizontal: 8, paddingVertical: 4, marginRight: 6, borderWidth: 1, borderColor: '#ffa500', borderRadius: 6 },
-  deleteBtn: { paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#ff4d4d', borderRadius: 6 },
-  btnTextOrange: { color: '#ffa500', fontSize: 11 },
-  btnTextRed: { color: '#ff4d4d', fontSize: 11 },
+  deleteBtn: { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#ff4d4d', borderRadius: 6, backgroundColor: '#2a1111' },
+  btnTextRed: { color: '#ff4d4d', fontSize: 11, fontWeight: 'bold' },
 
   propertyCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 12 },
   badgeBlue: { backgroundColor: '#1e3a5f', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
-  badgeGreen: { backgroundColor: '#1b4d2b', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   badgeRed: { backgroundColor: '#800020', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   propertyTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
