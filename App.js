@@ -11,7 +11,9 @@ import {
   Easing,
   TextInput,
   Modal,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -21,20 +23,21 @@ export default function App() {
 
   // Modal ve Form State'leri
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalType, setModalType] = useState(''); // 'kredi', 'talep', 'mulk'
+  const [modalType, setModalType] = useState(''); // 'kredi', 'talep'
   
-  // Yeni Kredi Formu
+  // Form Alanları
   const [krediBaslik, setKrediBaslik] = useState('');
   const [krediTutar, setKrediTutar] = useState('');
   const [krediTarih, setKrediTarih] = useState('');
+  
+  const [talepMusteri, setTalepMusteri] = useState('');
+  const [talepBolge, setTalepBolge] = useState('');
+
+  // Listeler (Başlangıç verileri)
   const [kredilerListesi, setKredilerListesi] = useState([
     { id: '1', baslik: 'Ofis Yatırım Kredisi', tutar: '₺14.200', kalan: '4 gün' }
   ]);
 
-  // Yeni Talep Formu
-  const [talepMusteri, setTalepMusteri] = useState('');
-  const [talepBolge, setTalepBolge] = useState('');
-  const [talepTip, setTalepTip] = useState('Konut');
   const [taleplerListesi, setTaleplerListesi] = useState([
     { id: '1', musteri: 'Ahmet Bey', bolge: 'Ören', tip: 'Konut', detay: 'Ören - Konut talebi' }
   ]);
@@ -42,24 +45,49 @@ export default function App() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Uygulama açıldığında kaydedilmiş verileri yükle
   useEffect(() => {
+    veriYukle();
+
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 600,
+      duration: 500,
       useNativeDriver: true,
     }).start();
 
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: 2000,
+      duration: 1800,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       useNativeDriver: false,
     }).start(() => {
       setTimeout(() => {
         setIsLoading(false);
-      }, 200);
+      }, 150);
     });
   }, []);
+
+  // AsyncStorage Veri Okuma
+  const veriYukle = async () => {
+    try {
+      const kayitliKrediler = await AsyncStorage.getItem('@krediler_listesi');
+      const kayitliTalepler = await AsyncStorage.getItem('@talepler_listesi');
+      if (kayitliKrediler) setKredilerListesi(JSON.parse(kayitliKrediler));
+      if (kayitliTalepler) setTaleplerListesi(JSON.parse(kayitliTalepler));
+    } catch (e) {
+      console.log('Veri yükleme hatası', e);
+    }
+  };
+
+  // AsyncStorage Veri Kaydetme
+  const veriKaydet = async (yeniKrediler, yeniTalepler) => {
+    try {
+      if (yeniKrediler) await AsyncStorage.setItem('@krediler_listesi', JSON.stringify(yeniKrediler));
+      if (yeniTalepler) await AsyncStorage.setItem('@talepler_listesi', JSON.stringify(yeniTalepler));
+    } catch (e) {
+      console.log('Veri kaydetme hatası', e);
+    }
+  };
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -67,14 +95,32 @@ export default function App() {
   });
 
   const kayitEkle = () => {
-    if (modalType === 'kredi' && krediBaslik) {
-      setKredilerListesi([...kredilerListesi, { id: Date.now().toString(), baslik: krediBaslik, tutar: krediTutar, kalan: krediTarih }]);
+    if (modalType === 'kredi') {
+      if (!krediBaslik || !krediTutar) {
+        Alert.alert('Eksik Bilgi', 'Lütfen kredi başlığı ve tutarını giriniz.');
+        return;
+      }
+      const yeniListe = [...kredilerListesi, { id: Date.now().toString(), baslik: krediBaslik, tutar: krediTutar, kalan: krediTarih || '1 ay' }];
+      setKredilerListesi(yeniListe);
+      veriKaydet(yeniListe, null);
       setKrediBaslik(''); setKrediTutar(''); setKrediTarih('');
-    } else if (modalType === 'talep' && talepMusteri) {
-      setTaleplerListesi([...taleplerListesi, { id: Date.now().toString(), musteri: talepMusteri, bolge: talepBolge, tip: talepTip, detay: `${talepBolge} - ${talepTip} talebi` }]);
+    } else if (modalType === 'talep') {
+      if (!talepMusteri || !talepBolge) {
+        Alert.alert('Eksik Bilgi', 'Lütfen müşteri adı ve bölgeyi giriniz.');
+        return;
+      }
+      const yeniListe = [...taleplerListesi, { id: Date.now().toString(), musteri: talepMusteri, bolge: talepBolge, tip: 'Konut', detay: `${talepBolge} - Konut talebi` }];
+      setTaleplerListesi(yeniListe);
+      veriKaydet(null, yeniListe);
       setTalepMusteri(''); setTalepBolge('');
     }
     setModalVisible(false);
+  };
+
+  const krediSil = (id) => {
+    const yeniListe = kredilerListesi.filter(item => item.id !== id);
+    setKredilerListesi(yeniListe);
+    veriKaydet(yeniListe, null);
   };
 
   if (isLoading) {
@@ -189,7 +235,6 @@ export default function App() {
               </View>
               <Text style={styles.chartSub}>Son 6 Aylık Net Performans</Text>
               
-              {/* Grafik Çizim Alanı */}
               <View style={styles.graphVisualContainer}>
                 <View style={styles.graphLineFake} />
                 <View style={[styles.graphDot, { left: '10%', top: 50 }]}><Text style={styles.dotText}>22k</Text></View>
@@ -211,16 +256,16 @@ export default function App() {
             </View>
 
             {/* Krediler Listesi */}
-            {finansSubTab === 'krediler' && (
+            {(finansSubTab === 'krediler' || finansSubTab === 'genel') && (
               <View>
                 <Text style={styles.sectionTitle}>Aktif Krediler &amp; Ödemeler</Text>
-                {kredilerListesi.map((k, idx) => (
-                  <View key={idx} style={styles.bankCard}>
+                {kredilerListesi.map((k) => (
+                  <View key={k.id} style={styles.bankCard}>
                     <View>
                       <Text style={styles.bankTitle}>{k.baslik}</Text>
                       <Text style={styles.propertySub}>Tutar: {k.tutar} | Kalan: {k.kalan}</Text>
                     </View>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => setKredilerListesi(kredilerListesi.filter(item => item.id !== k.id))}>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => krediSil(k.id)}>
                       <Text style={styles.btnTextRed}>Sil</Text>
                     </TouchableOpacity>
                   </View>
@@ -282,8 +327,8 @@ export default function App() {
               </View>
             ) : (
               <View>
-                {taleplerListesi.map((t, idx) => (
-                  <View key={idx} style={styles.propertyCard}>
+                {taleplerListesi.map((t) => (
+                  <View key={t.id} style={styles.propertyCard}>
                     <View style={styles.badgeRed}><Text style={styles.badgeText}>Talep</Text></View>
                     <Text style={styles.propertyTitle}>{t.musteri}</Text>
                     <Text style={styles.propertySub}>Bölge: {t.bolge} | Tür: {t.tip}</Text>
@@ -307,9 +352,9 @@ export default function App() {
 
             {modalType === 'kredi' ? (
               <>
-                <TextInput style={styles.input} placeholder="Kredi Başlığı (Örn: Taşıt Kredisi)" placeholderTextColor="#666" value={krediBaslik} onChangeText={setKrediBaslik} />
-                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺8.500)" placeholderTextColor="#666" value={krediTutar} onChangeText={setKrediTutar} />
-                <TextInput style={styles.input} placeholder="Kalan Süre (Örn: 10 gün)" placeholderTextColor="#666" value={krediTarih} onChangeText={setKrediTarih} />
+                <TextInput style={styles.input} placeholder="Kredi Başlığı (Örn: Ofis Kredisi)" placeholderTextColor="#666" value={krediBaslik} onChangeText={setKrediBaslik} />
+                <TextInput style={styles.input} placeholder="Tutar (Örn: ₺12.000)" placeholderTextColor="#666" value={krediTutar} onChangeText={setKrediTutar} />
+                <TextInput style={styles.input} placeholder="Kalan Süre (Örn: 5 gün)" placeholderTextColor="#666" value={krediTarih} onChangeText={setKrediTarih} />
               </>
             ) : (
               <>
