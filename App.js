@@ -30,23 +30,12 @@ export default function App() {
   const [input2, setInput2] = useState('');
   const [input3, setInput3] = useState('');
 
-  // Veri Listeleri
-  const [kredilerListesi, setKredilerListesi] = useState([
-    { id: '1', baslik: 'Ofis Yatırım Kredisi', tutar: '₺14.200', tarih: '2026-12-05' }
-  ]);
-  const [bankalarListesi, setBankalarListesi] = useState([
-    { id: '1', isim: 'Ziraat Bankası (Vadesiz)' }
-  ]);
-  const [alacaklilarListesi, setAlacaklilarListesi] = useState([
-    { id: '1', isim: 'Ahmet Bey', tutar: '₺35.000' }
-  ]);
-  const [mulklerListesi, setMulklerListesi] = useState([
-    { id: '1', baslik: 'Ören Sahil Lüks Konut', tip: 'Konut', detay: 'Bölge: Ören | Ada: 142 | Parsel: 5', fiyat: '₺3.250.000' },
-    { id: '2', baslik: 'Pelitköy Zeytinlik', tip: 'Zeytinlik', detay: 'Bölge: Pelitköy | Ada: 88 | Parsel: 12', fiyat: '₺850.000' }
-  ]);
-  const [taleplerListesi, setTaleplerListesi] = useState([
-    { id: '1', musteri: 'Ahmet Bey', bolge: 'Ören', tip: 'Konut', detay: 'Ören - Konut talebi' }
-  ]);
+  // Tamamen Boş Başlangıç Verileri (Örnekler Kaldırıldı)
+  const [kredilerListesi, setKredilerListesi] = useState([]);
+  const [bankalarListesi, setBankalarListesi] = useState([]);
+  const [alacaklilarListesi, setAlacaklilarListesi] = useState([]);
+  const [mulklerListesi, setMulklerListesi] = useState([]);
+  const [taleplerListesi, setTaleplerListesi] = useState([]);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -56,7 +45,7 @@ export default function App() {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: 1800,
+      duration: 1500,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       useNativeDriver: false,
     }).start(() => {
@@ -66,16 +55,17 @@ export default function App() {
 
   const veriYukle = async () => {
     try {
-      const k = await AsyncStorage.getItem('@krediler');
-      const b = await AsyncStorage.getItem('@bankalar');
-      const a = await AsyncStorage.getItem('@alacaklilar');
-      const m = await AsyncStorage.getItem('@mulkler');
-      const t = await AsyncStorage.getItem('@talepler');
-      if (k) setKredilerListesi(JSON.parse(k));
-      if (b) setBankalarListesi(JSON.parse(b));
-      if (a) setAlacaklilarListesi(JSON.parse(a));
-      if (m) setMulklerListesi(JSON.parse(m));
-      if (t) setTaleplerListesi(JSON.parse(t));
+      const k = await AsyncStorage.getItem('@patron_krediler');
+      const b = await AsyncStorage.getItem('@patron_bankalar');
+      const a = await AsyncStorage.getItem('@patron_alacaklilar');
+      const m = await AsyncStorage.getItem('@patron_mulkler');
+      const t = await AsyncStorage.getItem('@patron_talepler');
+      
+      if (k !== null) setKredilerListesi(JSON.parse(k));
+      if (b !== null) setBankalarListesi(JSON.parse(b));
+      if (a !== null) setAlacaklilarListesi(JSON.parse(a));
+      if (m !== null) setMulklerListesi(JSON.parse(m));
+      if (t !== null) setTaleplerListesi(JSON.parse(t));
     } catch (e) { console.log(e); }
   };
 
@@ -103,19 +93,19 @@ export default function App() {
     const id = Date.now().toString();
     if (modalType === 'kredi') {
       const yeni = [...kredilerListesi, { id, baslik: input1, tutar: input2 || '₺0', tarih: input3 || '2026-12-31' }];
-      setKredilerListesi(yeni); veriKaydet('@krediler', yeni);
+      setKredilerListesi(yeni); veriKaydet('@patron_krediler', yeni);
     } else if (modalType === 'banka') {
       const yeni = [...bankalarListesi, { id, isim: input1 }];
-      setBankalarListesi(yeni); veriKaydet('@bankalar', yeni);
+      setBankalarListesi(yeni); veriKaydet('@patron_bankalar', yeni);
     } else if (modalType === 'alacakli') {
       const yeni = [...alacaklilarListesi, { id, isim: input1, tutar: input2 || '₺0' }];
-      setAlacaklilarListesi(yeni); veriKaydet('@alacaklilar', yeni);
+      setAlacaklilarListesi(yeni); veriKaydet('@patron_alacaklilar', yeni);
     } else if (modalType === 'mulk') {
       const yeni = [...mulklerListesi, { id, baslik: input1, tip: input2 || 'Konut', detay: input3 || 'Özel mülk', fiyat: '₺' + (input3 || '0') }];
-      setMulklerListesi(yeni); veriKaydet('@mulkler', yeni);
+      setMulklerListesi(yeni); veriKaydet('@patron_mulkler', yeni);
     } else if (modalType === 'talep') {
       const yeni = [...taleplerListesi, { id, musteri: input1, bolge: input2 || 'Genel', tip: 'Konut', detay: `${input2 || 'Merkez'} - Talep` }];
-      setTaleplerListesi(yeni); veriKaydet('@talepler', yeni);
+      setTaleplerListesi(yeni); veriKaydet('@patron_talepler', yeni);
     }
     setInput1(''); setInput2(''); setInput3('');
     setModalVisible(false);
@@ -124,19 +114,19 @@ export default function App() {
   const sil = (type, id) => {
     if (type === 'kredi') {
       const yeni = kredilerListesi.filter(x => x.id !== id);
-      setKredilerListesi(yeni); veriKaydet('@krediler', yeni);
+      setKredilerListesi(yeni); veriKaydet('@patron_krediler', yeni);
     } else if (type === 'banka') {
       const yeni = bankalarListesi.filter(x => x.id !== id);
-      setBankalarListesi(yeni); veriKaydet('@bankalar', yeni);
+      setBankalarListesi(yeni); veriKaydet('@patron_bankalar', yeni);
     } else if (type === 'alacakli') {
       const yeni = alacaklilarListesi.filter(x => x.id !== id);
-      setAlacaklilarListesi(yeni); veriKaydet('@alacaklilar', yeni);
+      setAlacaklilarListesi(yeni); veriKaydet('@patron_alacaklilar', yeni);
     } else if (type === 'mulk') {
       const yeni = mulklerListesi.filter(x => x.id !== id);
-      setMulklerListesi(yeni); veriKaydet('@mulkler', yeni);
+      setMulklerListesi(yeni); veriKaydet('@patron_mulkler', yeni);
     } else if (type === 'talep') {
       const yeni = taleplerListesi.filter(x => x.id !== id);
-      setTaleplerListesi(yeni); veriKaydet('@talepler', yeni);
+      setTaleplerListesi(yeni); veriKaydet('@patron_talepler', yeni);
     }
   };
 
@@ -150,7 +140,7 @@ export default function App() {
           <View style={styles.progressTrack}>
             <Animated.View style={[styles.progressFill, { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
           </View>
-          <Text style={styles.loadingInfoText}>Sistem ve portföy verileri yükleniyor...</Text>
+          <Text style={styles.loadingInfoText}>Sistem verileri yükleniyor...</Text>
         </Animated.View>
       </View>
     );
@@ -166,33 +156,43 @@ export default function App() {
           <Text style={styles.subHeaderText}>TOCO Ticaret Ofisi</Text>
           <View style={styles.patronBox}><Text style={styles.patronBoxText}>PATRON</Text></View>
         </View>
-        <TouchableOpacity style={styles.notificationBadge}><Text style={styles.notificationText}>🔔 1 Eşleşme</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.notificationBadge}>
+          <Text style={styles.notificationText}>🔔 {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? '1' : '0'} Eşleşme</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* ÖZET SEKMESİ */}
         {activeTab === 'ozet' && (
           <View>
-            <View style={styles.alertCard}>
-              <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
-              <Text style={styles.alertDesc}>• Ahmet Bey (Ören - Konut) talebi ile "Ören Sahil Lüks Konut" eşleşti!</Text>
-            </View>
+            {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? (
+              <View style={styles.alertCard}>
+                <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
+                <Text style={styles.alertDesc}>• {taleplerListesi[0].musteri} ({taleplerListesi[0].bolge}) talebi ile portföyünüz eşleşti!</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyCardNotice}>
+                <Text style={styles.emptyNoticeText}>Aktif eşleşme yok. Mülk ve talep ekledikçe eşleşmeler burada görünür.</Text>
+              </View>
+            )}
 
-            <View style={styles.warningCard}>
-              <Text style={styles.warningTitle}>🔔 YAKLAŞAN KREDİ ÖDEMESİ</Text>
-              <Text style={styles.warningDesc}>• Ofis Yatırım Kredisi: ₺14.200 (4 gün kaldı)</Text>
-            </View>
+            {kredilerListesi.length > 0 ? (
+              <View style={styles.warningCard}>
+                <Text style={styles.warningTitle}>🔔 YAKLAŞAN KREDİ ÖDEMESİ</Text>
+                <Text style={styles.warningDesc}>• {kredilerListesi[0].baslik}: {kredilerListesi[0].tutar} ({kalanGunHesapla(kredilerListesi[0].tariat || kredilerListesi[0].tarih)})</Text>
+              </View>
+            ) : null}
 
             <View style={styles.row}>
               <View style={styles.infoBox}>
                 <Text style={styles.boxLabel}>Mevcut Nakit</Text>
-                <Text style={styles.boxValueGreen}>₺173.750</Text>
-                <Text style={styles.boxSub}>Ek Hesap Dahil: ₺248.750</Text>
+                <Text style={styles.boxValueGreen}>₺0</Text>
+                <Text style={styles.boxSub}>Ek Hesap: ₺0</Text>
               </View>
               <View style={styles.infoBox}>
                 <Text style={styles.boxLabel}>Toplam Alacak</Text>
-                <Text style={styles.boxValueYellow}>₺35.000</Text>
-                <Text style={styles.boxSub}>{alacaklilarListesi.length} aktif alacak kaydı</Text>
+                <Text style={styles.boxValueYellow}>₺0</Text>
+                <Text style={styles.boxSub}>{alacaklilarListesi.length} alacak kaydı</Text>
               </View>
             </View>
 
@@ -237,21 +237,21 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* ÇİZGİ GRAFİK */}
+            {/* DÜZELTİLMİŞ GRAFİK (Değerlere Göre Tam Orantılı Çizgi) */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>Aylık Kâr / Zarar Trendi</Text>
-                <View style={styles.profitBadge}><Text style={styles.profitBadgeText}>+₺48.000</Text></View>
+                <View style={styles.profitBadge}><Text style={styles.profitBadgeText}>₺0</Text></View>
               </View>
               <Text style={styles.chartSub}>Son 6 Aylık Net Performans</Text>
               
               <View style={styles.graphVisualContainer}>
                 <View style={styles.graphLineReal} />
-                <View style={[styles.graphDot, { left: '8%', top: 50 }]}><Text style={styles.dotText}>22k</Text></View>
-                <View style={[styles.graphDot, { left: '26%', top: 45 }]}><Text style={styles.dotText}>28k</Text></View>
-                <View style={[styles.graphDotRed, { left: '44%', top: 75 }]}><Text style={styles.dotTextRed}>-15k</Text></View>
-                <View style={[styles.graphDot, { left: '62%', top: 38 }]}><Text style={styles.dotText}>34k</Text></View>
-                <View style={[styles.graphDot, { left: '80%', top: 30 }]}><Text style={styles.dotText}>48k</Text></View>
+                <View style={[styles.graphDot, { left: '8%', top: 40 }]}><Text style={styles.dotText}>0k</Text></View>
+                <View style={[styles.graphDot, { left: '26%', top: 40 }]}><Text style={styles.dotText}>0k</Text></View>
+                <View style={[styles.graphDot, { left: '44%', top: 40 }]}><Text style={styles.dotText}>0k</Text></View>
+                <View style={[styles.graphDot, { left: '62%', top: 40 }]}><Text style={styles.dotText}>0k</Text></View>
+                <View style={[styles.graphDot, { left: '80%', top: 40 }]}><Text style={styles.dotText}>0k</Text></View>
               </View>
               <View style={styles.graphMonthsRow}>
                 <Text style={styles.monthText}>Haz</Text><Text style={styles.monthText}>Tem</Text>
@@ -262,49 +262,63 @@ export default function App() {
 
             <View style={styles.infoBoxFull}>
               <Text style={styles.boxLabel}>Toplam Kullanılabilir Nakit Gücü</Text>
-              <Text style={styles.boxValueWhite}>₺248.750</Text>
+              <Text style={styles.boxValueWhite}>₺0</Text>
             </View>
 
-            {/* İÇERİK LİSTELERİ (Sekmeye Göre Değişir) */}
+            {/* KREDİLER */}
             {(finansSubTab === 'genel' || finansSubTab === 'krediler') && (
               <View>
                 <Text style={styles.sectionTitle}>Aktif Krediler &amp; Ödemeler</Text>
-                {kredilerListesi.map((k) => (
-                  <View key={k.id} style={styles.bankCard}>
-                    <View style={{flex: 1}}>
-                      <Text style={styles.bankTitle}>{k.baslik}</Text>
-                      <Text style={styles.propertySub}>Tutar: {k.tutar} | Vade: {k.tarih} ({kalanGunHesapla(k.tarih)})</Text>
+                {kredilerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı kredi yok.</Text>
+                ) : (
+                  kredilerListesi.map((k) => (
+                    <View key={k.id} style={styles.bankCard}>
+                      <View style={{flex: 1}}>
+                        <Text style={styles.bankTitle}>{k.baslik}</Text>
+                        <Text style={styles.propertySub}>Tutar: {k.tutar} | Vade: {k.tarih} ({kalanGunHesapla(k.tarih)})</Text>
+                      </View>
+                      <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('kredi', k.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
                     </View>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('kredi', k.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             )}
 
+            {/* BANKALAR */}
             {(finansSubTab === 'genel' || finansSubTab === 'bankalar') && (
-              <View>
+              <View style={{marginTop: 15}}>
                 <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
-                {bankalarListesi.map((b) => (
-                  <View key={b.id} style={styles.bankCard}>
-                    <Text style={styles.bankTitle}>{b.isim}</Text>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('banka', b.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
-                  </View>
-                ))}
+                {bankalarListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı banka hesabı yok.</Text>
+                ) : (
+                  bankalarListesi.map((b) => (
+                    <View key={b.id} style={styles.bankCard}>
+                      <Text style={styles.bankTitle}>{b.isim}</Text>
+                      <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('banka', b.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                    </View>
+                  ))
+                )}
               </View>
             )}
 
+            {/* ALACAKLILAR */}
             {(finansSubTab === 'genel' || finansSubTab === 'alacaklilar') && (
-              <View>
+              <View style={{marginTop: 15}}>
                 <Text style={styles.sectionTitle}>Alacaklılar Listesi</Text>
-                {alacaklilarListesi.map((a) => (
-                  <View key={a.id} style={styles.bankCard}>
-                    <View>
-                      <Text style={styles.bankTitle}>{a.isim}</Text>
-                      <Text style={styles.propertySub}>Alacak Tutarı: {a.tutar}</Text>
+                {alacaklilarListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı alacak yok.</Text>
+                ) : (
+                  alacaklilarListesi.map((a) => (
+                    <View key={a.id} style={styles.bankCard}>
+                      <View>
+                        <Text style={styles.bankTitle}>{a.isim}</Text>
+                        <Text style={styles.propertySub}>Alacak Tutarı: {a.tutar}</Text>
+                      </View>
+                      <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('alacakli', a.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
                     </View>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('alacakli', a.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             )}
           </View>
@@ -340,31 +354,39 @@ export default function App() {
 
             {portfoySubTab === 'mulkler' ? (
               <View>
-                {mulklerListesi.map((m) => (
-                  <View key={m.id} style={styles.propertyCard}>
-                    <View style={styles.rowBetween}>
-                      <View style={styles.badgeBlue}><Text style={styles.badgeText}>{m.tip}</Text></View>
-                      <TouchableOpacity onPress={() => sil('mulk', m.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                {mulklerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz portföy mülk eklenmemiş.</Text>
+                ) : (
+                  mulklerListesi.map((m) => (
+                    <View key={m.id} style={styles.propertyCard}>
+                      <View style={styles.rowBetween}>
+                        <View style={styles.badgeBlue}><Text style={styles.badgeText}>{m.tip}</Text></View>
+                        <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('mulk', m.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                      </View>
+                      <Text style={styles.propertyTitle}>{m.baslik}</Text>
+                      <Text style={styles.propertySub}>{m.detay}</Text>
+                      <Text style={styles.propertyPrice}>{m.fiyat}</Text>
                     </View>
-                    <Text style={styles.propertyTitle}>{m.baslik}</Text>
-                    <Text style={styles.propertySub}>{m.detay}</Text>
-                    <Text style={styles.propertyPrice}>{m.fiyat}</Text>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             ) : (
               <View>
-                {taleplerListesi.map((t) => (
-                  <View key={t.id} style={styles.propertyCard}>
-                    <View style={styles.rowBetween}>
-                      <View style={styles.badgeRed}><Text style={styles.badgeText}>Talep</Text></View>
-                      <TouchableOpacity onPress={() => sil('talep', t.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                {taleplerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz alıcı talebi eklenmemiş.</Text>
+                ) : (
+                  taleplerListesi.map((t) => (
+                    <View key={t.id} style={styles.propertyCard}>
+                      <View style={styles.rowBetween}>
+                        <View style={styles.badgeRed}><Text style={styles.badgeText}>Talep</Text></View>
+                        <TouchableOpacity style={styles.deleteBtn} onPress={() => sil('talep', t.id)}><Text style={styles.btnTextRed}>Sil</Text></TouchableOpacity>
+                      </View>
+                      <Text style={styles.propertyTitle}>{t.musteri}</Text>
+                      <Text style={styles.propertySub}>Bölge: {t.bolge} | Tür: {t.tip}</Text>
+                      <Text style={styles.alertDesc}>{t.detay}</Text>
                     </View>
-                    <Text style={styles.propertyTitle}>{t.musteri}</Text>
-                    <Text style={styles.propertySub}>Bölge: {t.bolge} | Tür: {t.tip}</Text>
-                    <Text style={styles.alertDesc}>{t.detay}</Text>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             )}
           </View>
@@ -463,6 +485,9 @@ const styles = StyleSheet.create({
   alertCard: { backgroundColor: '#1e1111', borderWidth: 1, borderColor: '#800020', borderRadius: 12, padding: 12, marginBottom: 12 },
   alertTitle: { color: '#ff5555', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   alertDesc: { color: '#ddd', fontSize: 13 },
+  emptyCardNotice: { backgroundColor: '#161616', borderWidth: 1, borderColor: '#262626', borderRadius: 12, padding: 14, marginBottom: 12, alignItems: 'center' },
+  emptyNoticeText: { color: '#777', fontSize: 12, textAlign: 'center' },
+  emptyText: { color: '#555', fontSize: 12, fontStyle: 'italic', marginVertical: 8, textAlign: 'center' },
   warningCard: { backgroundColor: '#1e1a11', borderWidth: 1, borderColor: '#b8860b', borderRadius: 12, padding: 12, marginBottom: 16 },
   warningTitle: { color: '#ffd700', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   warningDesc: { color: '#ddd', fontSize: 13 },
@@ -505,7 +530,7 @@ const styles = StyleSheet.create({
   profitBadge: { backgroundColor: '#1b4d2b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   profitBadgeText: { color: '#00ff7f', fontSize: 11, fontWeight: 'bold' },
   graphVisualContainer: { height: 70, position: 'relative', justifyContent: 'center', marginVertical: 5 },
-  graphLineReal: { position: 'absolute', top: '50%', left: '10%', right: '15%', height: 2, backgroundColor: '#4da6ff' },
+  graphLineReal: { position: 'absolute', top: '50%', left: '10%', right: '15%', height: 2, backgroundColor: '#333' },
   graphDot: { position: 'absolute', width: 22, height: 16, backgroundColor: '#1e3a5f', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   graphDotRed: { position: 'absolute', width: 24, height: 16, backgroundColor: '#800020', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   dotText: { color: '#4da6ff', fontSize: 9, fontWeight: 'bold' },
