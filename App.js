@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Share, Modal, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Share, SafeAreaStorage, SafeAreaView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 
 export default function App() {
+  const [aktifTab, setAktifTab] = useState('anaSayfa'); // 'anaSayfa' veya 'ayarlar'
   const [veriler, setVeriler] = useState([]);
   const [yazi, setYazi] = useState('');
-  const [modalGorunur, setModalGorunur] = useState(false);
   const [importMetni, setImportMetni] = useState('');
 
   useEffect(() => {
@@ -45,7 +45,6 @@ export default function App() {
     veriyiKaydet(yeniListe);
   };
 
-  // Verileri Dışa Aktar (Export)
   const verileriDisariAktar = async () => {
     try {
       const jsonVeri = JSON.stringify(veriler);
@@ -58,7 +57,6 @@ export default function App() {
     }
   };
 
-  // Verileri İçe Aktar (Import)
   const verileriIceriAktar = () => {
     try {
       if (!importMetni.trim()) {
@@ -69,7 +67,6 @@ export default function App() {
       if (Array.isArray(parseEdilmis)) {
         veriyiKaydet(parseEdilmis);
         setImportMetni('');
-        setModalGorunur(false);
         Alert.alert('Başarılı', 'Veriler başarıyla yüklendi!');
       } else {
         Alert.alert('Hata', 'Geçersiz yedek formatı.');
@@ -83,59 +80,58 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Üst Başlık ve Ayarlar/Yedek Butonu */}
+      {/* Üst Başlık */}
       <View style={styles.header}>
         <Text style={styles.baslik}>PATRON YÖNETİM</Text>
-        <TouchableOpacity style={styles.ayarButon} onPress={() => setModalGorunur(true)}>
-          <Text style={styles.ayarButonText}>⚙️ Yedekle</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Ana Veri Ekleme Alanı */}
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Yeni kayıt veya not ekle..."
-          placeholderTextColor="#777"
-          value={yazi}
-          onChangeText={setYazi}
-        />
-        <TouchableOpacity style={styles.buton} onPress={veriEkle}>
-          <Text style={styles.butonText}>Ekle</Text>
-        </TouchableOpacity>
-      </View>
+      {/* İÇERİK ALANI: Sekmelere Göre Değişir */}
+      <View style={styles.content}>
+        {aktifTab === 'anaSayfa' ? (
+          /* --- ANA SAYFA --- */
+          <View style={{ flex: 1 }}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Yeni kayıt veya not ekle..."
+                placeholderTextColor="#777"
+                value={yazi}
+                onChangeText={setYazi}
+              />
+              <TouchableOpacity style={styles.buton} onPress={veriEkle}>
+                <Text style={styles.butonText}>Ekle</Text>
+              </TouchableOpacity>
+            </View>
 
-      {/* Kayıt Listesi */}
-      <FlatList
-        data={veriler}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.itemContainer}>
-            <Text style={styles.itemText}>{item.baslik}</Text>
-            <TouchableOpacity onPress={() => veriSil(item.id)}>
-              <Text style={styles.silText}>Sil</Text>
-            </TouchableOpacity>
+            <FlatList
+              data={veriler}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.itemContainer}>
+                  <Text style={styles.itemText}>{item.baslik}</Text>
+                  <TouchableOpacity onPress={() => veriSil(item.id)}>
+                    <Text style={styles.silText}>Sil</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.bosText}>Henüz kayıt eklenmemiş. Yukarıdan yeni kayıt ekleyebilirsin.</Text>
+              }
+            />
           </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.bosText}>Henüz kayıt eklenmemiş. Yukarıdan yeni kayıt ekleyebilirsin.</Text>
-        }
-      />
-
-      {/* Yedekleme ve Taşıma Paneli (Modal) */}
-      <Modal visible={modalGorunur} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalBaslik}>Veri Yedekleme ve Taşıma</Text>
+        ) : (
+          /* --- AYARLAR VE YEDEKLEME SAYFASI --- */
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Veri Yedekleme ve Taşıma</Text>
             
-            <TouchableOpacity style={styles.modalButton} onPress={verileriDisariAktar}>
-              <Text style={styles.modalButtonText}>📤 Yedeği Başka Telefona Gönder / Paylaş</Text>
+            <TouchableOpacity style={styles.ayarButton} onPress={verileriDisariAktar}>
+              <Text style={styles.ayarButtonText}>📤 Yedeği Başka Telefona Gönder / Paylaş</Text>
             </TouchableOpacity>
 
-            <Text style={styles.modalAciklama}>Başka telefondan gelen yedek kodunu aşağıya yapıştır:</Text>
+            <Text style={styles.aciklama}>Başka telefondan gelen yedek kodunu aşağıya yapıştır:</Text>
             
             <TextInput
-              style={styles.modalInput}
+              style={styles.textArea}
               placeholder="Yedek kodunu buraya yapıştır..."
               placeholderTextColor="#666"
               value={importMetni}
@@ -143,16 +139,29 @@ export default function App() {
               multiline
             />
 
-            <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#444', marginTop: 10 }]} onPress={verileriIceriAktar}>
-              <Text style={styles.modalButtonText}>📥 Yedeği Yükle (Import)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.kapatButton} onPress={() => setModalGorunur(false)}>
-              <Text style={styles.kapatButtonText}>Kapat</Text>
+            <TouchableOpacity style={[styles.ayarButton, { backgroundColor: '#444', marginTop: 10 }]} onPress={verileriIceriAktar}>
+              <Text style={styles.ayarButtonText}>📥 Yedeği Yükle (Import)</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        )}
+      </View>
+
+      {/* ALT MENÜ (TAB BAR) */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity 
+          style={[styles.tabItem, aktifTab === 'anaSayfa' && styles.aktifTab]} 
+          onPress={() => setAktifTab('anaSayfa')}
+        >
+          <Text style={[styles.tabText, aktifTab === 'anaSayfa' && styles.aktifTabText]}>🏠 Ana Sayfa</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.tabItem, aktifTab === 'ayarlar' && styles.aktifTab]} 
+          onPress={() => setAktifTab('ayarlar')}
+        >
+          <Text style={[styles.tabText, aktifTab === 'ayarlar' && styles.aktifTabText]}>⚙️ Ayarlar & Yedek</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -162,32 +171,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 30,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 10,
+    marginBottom: 15,
+    paddingHorizontal: 4,
   },
   baslik: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#8A1C14', // Vişne çürüğü
   },
-  ayarButon: {
-    backgroundColor: '#1E1E1E',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  ayarButonText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: 'bold',
+  content: {
+    flex: 1,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -243,60 +239,61 @@ const styles = StyleSheet.create({
     marginTop: 40,
     fontSize: 14,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  modalBaslik: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#FFF',
     marginBottom: 15,
-    textAlign: 'center',
   },
-  modalAciklama: {
+  aciklama: {
     color: '#aaa',
     fontSize: 13,
-    marginTop: 15,
+    marginTop: 20,
     marginBottom: 5,
   },
-  modalButton: {
+  ayarButton: {
     backgroundColor: '#8A1C14',
-    padding: 12,
+    padding: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  modalButtonText: {
+  ayarButtonText: {
     color: '#FFF',
     fontWeight: 'bold',
     fontSize: 14,
   },
-  modalInput: {
-    backgroundColor: '#121212',
+  textArea: {
+    backgroundColor: '#1E1E1E',
     color: '#FFF',
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
-    height: 80,
+    height: 100,
     borderWidth: 1,
     borderColor: '#333',
     textAlignVertical: 'top',
   },
-  kapatButton: {
-    marginTop: 15,
-    padding: 10,
-    alignItems: 'center',
+  tabBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#222',
+    paddingVertical: 10,
+    backgroundColor: '#121212',
   },
-  kapatButtonText: {
-    color: '#888',
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  aktifTab: {
+    backgroundColor: '#1E1E1E',
+  },
+  tabText: {
+    color: '#777',
     fontWeight: 'bold',
+    fontSize: 14,
+  },
+  aktifTabText: {
+    color: '#8A1C14',
   },
 });
