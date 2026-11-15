@@ -28,6 +28,7 @@ jobs:
 
       - name: Build local APK via Expo prebuild & Gradle
         run: |
+          rm -rf android
           npx expo prebuild --platform android --no-install
           cd android
           chmod +x gradlew
