@@ -11,6 +11,14 @@
     "android": {
       "package": "com.toco.patronyonetim"
     },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "enabled": false
+        }
+      ]
+    ],
     "web": {
       "bundler": "metro"
     }
