@@ -26,8 +26,9 @@ export default function App() {
   const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep', 'islem'
   const [duzenleId, setDuzenleId] = useState(null);
 
-  // Gelir / Gider ve Talep Özel State'leri
+  // Gelir/Gider, Mülk ve Talep Özel State'leri
   const [islemTuru, setIslemTuru] = useState('gelir'); // 'gelir' veya 'gider'
+  const [mulkKategori, setMulkKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
   const [talepKategori, setTalepKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
   const [seciliBankaId, setSeciliBankaId] = useState('');
 
@@ -218,7 +219,14 @@ export default function App() {
       } else if (modalType === 'mulk') {
         const yeni = mulklerListesi.map((x) =>
           x.id === duzenleId
-            ? { ...x, baslik: input1, tip: input2 || 'Konut', fiyat: sayiCoz(input3), detay: input4 || 'Özel mülk' }
+            ? {
+                ...x,
+                baslik: input1,
+                tip: input2 || 'Konut',
+                islemTipi: mulkKategori,
+                fiyat: sayiCoz(input3),
+                detay: input4 || 'Özel mülk',
+              }
             : x
         );
         setMulklerListesi(yeni);
@@ -273,6 +281,7 @@ export default function App() {
             id,
             baslik: input1,
             tip: input2 || 'Konut',
+            islemTipi: mulkKategori,
             fiyat: sayiCoz(input3),
             detay: input4 || 'Özel portföy',
           },
@@ -306,6 +315,7 @@ export default function App() {
     setInput3('');
     setInput4('');
     setInput5('');
+    setMulkKategori('Satılık');
     setTalepKategori('Satılık');
     setDuzenleId(null);
     setModalVisible(false);
@@ -330,6 +340,7 @@ export default function App() {
     } else if (type === 'mulk') {
       setInput1(item.baslik);
       setInput2(item.tip);
+      setMulkKategori(item.islemTipi || 'Satılık');
       setInput3(noktaKoy(item.fiyat));
       setInput4(item.detay);
     } else if (type === 'talep') {
@@ -447,7 +458,7 @@ export default function App() {
             ) : (
               <View style={styles.emptyCardNotice}>
                 <Text style={styles.emptyNoticeText}>
-                  Aktif eşleşme yok. Mülk and talep ekledikçe eşleşmeler burada görünür.
+                  Aktif eşleşme yok. Mülk ve talep ekledikçe eşleşmeler burada görünür.
                 </Text>
               </View>
             )}
@@ -777,8 +788,13 @@ export default function App() {
                   mulklerListesi.map((m) => (
                     <View key={m.id} style={styles.propertyCard}>
                       <View style={styles.rowBetween}>
-                        <View style={styles.badgeBlue}>
-                          <Text style={styles.badgeText}>{m.tip}</Text>
+                        <View style={{ flexDirection: 'row' }}>
+                          <View style={[styles.badgeBlue, { marginRight: 6 }]}>
+                            <Text style={styles.badgeText}>{m.tip}</Text>
+                          </View>
+                          <View style={m.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
+                            <Text style={styles.badgeText}>{m.islemTipi || 'Satılık'}</Text>
+                          </View>
                         </View>
                         <View style={styles.actionRowBtn}>
                           <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('mulk', m)}>
@@ -1001,6 +1017,27 @@ export default function App() {
 
             {modalType === 'mulk' && (
               <>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      mulkKategori === 'Satılık' && { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+                    ]}
+                    onPress={() => setMulkKategori('Satılık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>SATILIK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      mulkKategori === 'Kiralık' && { backgroundColor: '#1b4d2b', borderColor: '#2ecc71' },
+                    ]}
+                    onPress={() => setMulkKategori('Kiralık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>KİRALIK</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <TextInput
                   style={styles.input}
                   placeholder="Mülk Başlığı (Örn: Ören Lüks Villa)"
