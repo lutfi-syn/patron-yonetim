@@ -54,7 +54,7 @@ export default function App() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Eksi İşaretini ve Binlik Ayraçları Destekleyen Formatlayıcı
+  // Eksi İşareti ve Binlik Ayraç Formatlayıcı
   const noktaKoy = (val) => {
     if (val === null || val === undefined || val === '') return '';
     const strVal = val.toString();
@@ -151,6 +151,29 @@ export default function App() {
   const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
   const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.18)' : 'rgba(255, 77, 77, 0.18)';
 
+  // 1'e 1 BİREBİR EŞLEŞME MOTORU (Mülk Tipi ve İşlem Tipi Tam Uyuşmalı & Bütçe Yetmeli)
+  const gecerliEslesmeBul = () => {
+    for (let talep of taleplerListesi) {
+      for (let mulk of mulklerListesi) {
+        const talepTipTemiz = (talep.tip || 'Konut').trim().toLowerCase();
+        const mulkTipTemiz = (mulk.tip || 'Konut').trim().toLowerCase();
+        const talepIslemTemiz = (talep.islemTipi || 'Satılık').trim().toLowerCase();
+        const mulkIslemTemiz = (mulk.islemTipi || 'Satılık').trim().toLowerCase();
+
+        const tipEslesiyor = talepTipTemiz === mulkTipTemiz;
+        const islemEslesiyor = talepIslemTemiz === mulkIslemTemiz;
+        const butceYeterli = Number(talep.butce || 0) >= Number(mulk.fiyat || 0);
+
+        if (tipEslesiyor && islemEslesiyor && butceYeterli) {
+          return { talep, mulk };
+        }
+      }
+    }
+    return null;
+  };
+
+  const aktifEslesme = gecerliEslesmeBul();
+
   // 12 AYLIK VERİ HESAPLAMA MOTORU
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   
@@ -172,6 +195,12 @@ export default function App() {
 
     const bazNakit = netMevcutDurum - netKatki;
     return Math.round(bazNakit + netKatki * ((index + 1) / 12));
+  });
+
+  const aylikPotansiyelVerileri = aylarListesi.map((_, index) => {
+    const baz = potansiyelDurum;
+    const dalgalanma = (index - 6) * (baz * 0.02);
+    return Math.round(baz + dalgalanma);
   });
 
   const islemModaliniAc = (tur = 'gelir') => {
@@ -296,8 +325,9 @@ export default function App() {
                 musteri: input1,
                 bolge: input2 || 'Genel',
                 islemTipi: talepKategori,
+                tip: input4 || 'Konut',
                 butce: sayiCoz(input3),
-                detay: `${input2 || 'Merkez'} - ${talepKategori} Talep`,
+                detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Konut'} Talebi`,
               }
             : x
         );
@@ -353,9 +383,9 @@ export default function App() {
             musteri: input1,
             bolge: input2 || 'Genel',
             islemTipi: talepKategori,
-            tip: 'Konut',
+            tip: input4 || 'Konut',
             butce: sayiCoz(input3),
-            detay: `${input2 || 'Merkez'} - ${talepKategori} Alıcı Talebi`,
+            detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Konut'} Talebi`,
           },
         ];
         setTaleplerListesi(yeni);
@@ -406,6 +436,7 @@ export default function App() {
       setInput2(item.bolge);
       setTalepKategori(item.islemTipi || 'Satılık');
       setInput3(noktaKoy(item.butce));
+      setInput4(item.tip || 'Konut');
     }
     setModalVisible(true);
   };
@@ -496,7 +527,7 @@ export default function App() {
           <Text style={styles.liveClockText}>{anlikZaman}</Text>
           <TouchableOpacity style={styles.notificationBadge} onPress={() => setActiveTab('portfoy')}>
             <Text style={styles.notificationText}>
-              🔔 {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? '1' : '0'}
+              🔔 {aktifEslesme ? '1' : '0'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -505,18 +536,17 @@ export default function App() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {activeTab === 'ozet' && (
           <View>
-            {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? (
+            {aktifEslesme ? (
               <View style={styles.alertCard}>
                 <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
                 <Text style={styles.alertDesc}>
-                  • {taleplerListesi[0].musteri} ({taleplerListesi[0].bolge} - Bütçe:{' '}
-                  {paraGoster(taleplerListesi[0].butce)}) talebi ile portföyünüz eşleşti!
+                  • {aktifEslesme.talep.musteri} ({aktifEslesme.talep.bolge} - Bütçe: {paraGoster(aktifEslesme.talep.butce)}) {aktifEslesme.talep.islemTipi} {aktifEslesme.talep.tip || 'Konut'} talebi, "{aktifEslesme.mulk.baslik}" portföyünüzle 1'e 1 eşleşti!
                 </Text>
               </View>
             ) : (
               <View style={styles.emptyCardNotice}>
                 <Text style={styles.emptyNoticeText}>
-                  Aktif eşleşme yok. Mülk ve talep ekledikçe eşleşmeler burada görünür.
+                  Aktif 1'e 1 mülk/talep eşleşmesi yok (Tip, işlem ve bütçe uyumu aranır).
                 </Text>
               </View>
             )}
@@ -535,7 +565,9 @@ export default function App() {
             <View style={styles.row}>
               <View style={styles.infoBox}>
                 <Text style={styles.boxLabel}>Mevcut Nakit</Text>
-                <Text style={styles.boxValueGreen}>{paraGoster(toplamNakit)}</Text>
+                <Text style={[styles.boxValueGreen, { color: toplamNakit >= 0 ? '#00ff7f' : '#ff4d4d' }]}>
+                  {paraGoster(toplamNakit)}
+                </Text>
                 <Text style={styles.boxSub}>KMH Dahil: {paraGoster(kullanilabilirNakitGucu)}</Text>
               </View>
               <View style={styles.infoBox}>
@@ -626,7 +658,7 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* GELİŞMİŞ SOL MEBLAĞ SKALALI & BLUR DOLGULU GRAFİK */}
+            {/* MODERN ÇİFT RENKLİ GRAFİK & SOL SKALA */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -644,28 +676,33 @@ export default function App() {
 
               <View style={styles.legendRow}>
                 <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>┄ Potansiyel Alacaklı: {paraGoster(potansiyelDurum)}</Text>
+                <Text style={styles.legendGold}>◆ Potansiyel Durum: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
-              {/* SOL MEBLAĞ SKALASI VE GRAFİK ALANI */}
+              {/* GRAFİK ALANI VE SOL SKALA */}
               <View style={styles.chartBodyWrapper}>
                 <View style={styles.yAxisLabels}>
-                  <Text style={styles.axisText}>{kisalt(Math.max(netMevcutDurum * 1.5, 100000))}</Text>
+                  <Text style={styles.axisText}>{kisalt(Math.max(potansiyelDurum * 1.3, 100000))}</Text>
                   <Text style={styles.axisText}>0 ₺</Text>
                   <Text style={styles.axisText}>-{kisalt(Math.abs(netMevcutDurum * 0.5) || 50000)}</Text>
                 </View>
 
                 <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
+                  {/* Arka plan modern blur gradyan */}
                   <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '25%', height: '55%' }]} />
                   <View style={styles.graphBaseLine} />
                   <View style={styles.zeroLineLabel}><Text style={styles.zeroText}>0</Text></View>
 
+                  {/* 12 Ay Noktaları ve Çift Renkli Çizgi Simülasyonu */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
                       const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
                       return (
                         <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
+                          {/* Mevcut Nakit Noktası */}
                           <View style={[styles.gizliAyNoktasi, { borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]} />
+                          {/* Potansiyel Durum Noktası (Altın Sarısı) */}
+                          <View style={[styles.gizliPotansiyelNokta]} />
                           <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
                         </View>
                       );
@@ -885,7 +922,7 @@ export default function App() {
                     <View key={t.id} style={styles.propertyCard}>
                       <View style={styles.rowBetween}>
                         <View style={t.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
-                          <Text style={styles.badgeText}>{t.islemTipi || 'Satılık'} Talep</Text>
+                          <Text style={styles.badgeText}>{t.islemTipi || 'Satılık'} {t.tip || 'Konut'} Talep</Text>
                         </View>
                         <View style={styles.actionRowBtn}>
                           <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('talep', t)}>
@@ -1119,14 +1156,14 @@ export default function App() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Mülk Tipi (Örn: Konut / Zeytinlik)"
+                  placeholder="Mülk Tipi (Konut / Daire / Villa / Zeytinlik / Tarla)"
                   placeholderTextColor="#666"
                   value={input2}
                   onChangeText={setInput2}
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Fiyat (Örn: 8.000.000)"
+                  placeholder="Fiyat (Örn: 3.000.000)"
                   placeholderTextColor="#666"
                   keyboardType="numeric"
                   value={input3}
@@ -1167,7 +1204,7 @@ export default function App() {
 
                 <TextInput
                   style={styles.input}
-                  placeholder="Müşteri Adı (Örn: Ali Bey)"
+                  placeholder="Müşteri Adı (Örn: Ufuk Abla)"
                   placeholderTextColor="#666"
                   value={input1}
                   onChangeText={setInput1}
@@ -1181,7 +1218,14 @@ export default function App() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Müşteri Bütçesi (Örn: 8.000.000)"
+                  placeholder="Mülk Tipi (Konut / Daire / Villa / Zeytinlik / Tarla)"
+                  placeholderTextColor="#666"
+                  value={input4}
+                  onChangeText={setInput4}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Müşteri Bütçesi (Örn: 3.000.000)"
                   placeholderTextColor="#666"
                   keyboardType="numeric"
                   value={input3}
@@ -1252,7 +1296,7 @@ const styles = StyleSheet.create({
   infoBox: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, marginHorizontal: 4 },
   infoBoxFull: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#1e3a5f', borderRadius: 12, padding: 16, marginBottom: 16 },
   boxLabel: { color: '#aaa', fontSize: 12, marginBottom: 4 },
-  boxValueGreen: { color: '#00ff7f', fontSize: 18, fontWeight: 'bold', marginBottom: 2 },
+  boxValueGreen: { fontSize: 18, fontWeight: 'bold', marginBottom: 2 },
   boxValueYellow: { color: '#ffd700', fontSize: 18, fontWeight: 'bold', marginBottom: 2 },
   boxValueWhite: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   boxSub: { color: '#777', fontSize: 10 },
@@ -1305,6 +1349,7 @@ const styles = StyleSheet.create({
   ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   ayNoktaWrapper: { position: 'absolute', bottom: '38%', alignItems: 'center', width: 24, marginLeft: -12 },
   gizliAyNoktasi: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, marginBottom: 6 },
+  gizliPotansiyelNokta: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#ffd700', position: 'absolute', top: -14 },
   ayEtiketiYazi: { color: '#777', fontSize: 8, fontWeight: '600' },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
