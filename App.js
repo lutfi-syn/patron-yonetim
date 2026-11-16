@@ -109,14 +109,13 @@ export default function App() {
     }
   };
 
-  // CANLI FİNANSAL HESAPLAMALAR (Krediler nakitten düşülmez, sadece borç takibidir)
+  // CANLI FİNANSAL HESAPLAMALAR
   const toplamNakit = bankalarListesi.reduce((acc, item) => acc + (Number(item.bakiye) || 0), 0);
   const toplamKmh = bankalarListesi.reduce((acc, item) => acc + (Number(item.kmh) || 0), 0);
   const kullanilabilirNakitGucu = toplamNakit + toplamKmh;
   const toplamAlacak = alacaklilarListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
   const toplamKrediBorcu = kredilerListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
 
-  // Grafik İçin: Mevcut Nakit vs Potansiyel Alacaklı Nakit
   const netMevcutDurum = toplamNakit;
   const potansiyelDurum = toplamNakit + toplamAlacak;
 
@@ -135,14 +134,12 @@ export default function App() {
     setModalVisible(true);
   };
 
-  // Ekleme veya Güncelleme İşlemi
   const kaydetVeyaGuncelle = () => {
     if (!input1.trim()) {
       Alert.alert('Eksik Bilgi', 'Lütfen açıklama/başlık alanını doldurunuz.');
       return;
     }
 
-    // GELİR / GİDER İŞLEMİ KAYDI VE BANKA BAKİYESİ GÜNCELLEME
     if (modalType === 'islem') {
       const tutarSayi = sayiCoz(input2);
       if (tutarSayi <= 0) {
@@ -155,7 +152,6 @@ export default function App() {
         return;
       }
 
-      // Banka bakiyesini güncelle
       const guncelBankalar = bankalarListesi.map((b) => {
         if (b.id === seciliBankaId) {
           const yeniBakiye =
@@ -169,7 +165,6 @@ export default function App() {
       setBankalarListesi(guncelBankalar);
       veriKaydet('@patron_bankalar_v3', guncelBankalar);
 
-      // İşlem geçmişine ekle
       const bugun = new Date();
       const tarihMetni = `${bugun.getDate()}.${bugun.getMonth() + 1}.${bugun.getFullYear()}`;
       const yeniIslem = {
@@ -349,7 +344,6 @@ export default function App() {
       setAlacaklilarListesi(yeni);
       veriKaydet('@patron_alacaklilar_v3', yeni);
     } else if (type === 'islem') {
-      // İşlem silinirken banka bakiyesini geri düzelt
       const silinecek = islemlerListesi.find((x) => x.id === id);
       if (silinecek) {
         const guncelBankalar = bankalarListesi.map((b) => {
@@ -379,7 +373,6 @@ export default function App() {
     }
   };
 
-  // Grafik Nokta Yükseklik Hesaplama
   const maksimumDeger = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 10000);
   const mevcutYuzde = Math.min(Math.max((netMevcutDurum / maksimumDeger) * 35 + 45, 10), 80);
   const potansiyelYuzde = Math.min(Math.max((potansiyelDurum / maksimumDeger) * 35 + 45, 5), 75);
@@ -415,7 +408,6 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
-      {/* Üst Başlık */}
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
           <Text style={styles.subHeaderText}>TOCO Ticaret Ofisi</Text>
@@ -431,7 +423,6 @@ export default function App() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ÖZET SEKMESİ */}
         {activeTab === 'ozet' && (
           <View>
             {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? (
@@ -474,7 +465,6 @@ export default function App() {
               </View>
             </View>
 
-            {/* HIZLI GELİR / GİDER BUTONLARI */}
             <Text style={styles.sectionTitle}>Hızlı Kasa İşlemi</Text>
             <View style={styles.row}>
               <TouchableOpacity
@@ -504,7 +494,6 @@ export default function App() {
           </View>
         )}
 
-        {/* FİNANS SEKMESİ */}
         {activeTab === 'finans' && (
           <View>
             <View style={styles.rowBetween}>
@@ -557,7 +546,6 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* CANLI ÇİFT ÇİZGİLİ GRAFİK (Mevcut Nakit + Potansiyel Alacaklı) */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>Canlı Kasa &amp; Potansiyel Analizi</Text>
@@ -572,8 +560,6 @@ export default function App() {
 
               <View style={styles.graphVisualContainer}>
                 <View style={styles.graphBaseLine} />
-
-                {/* Potansiyel Alacak Çizgisi */}
                 <View style={[styles.graphLineGold, { bottom: `${potansiyelYuzde}%` }]} />
                 <View style={[styles.graphDotGold, { left: '12%', bottom: `${potansiyelYuzde - 6}%` }]}>
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
@@ -585,7 +571,6 @@ export default function App() {
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
                 </View>
 
-                {/* Mevcut Nakit Çizgisi */}
                 <View style={[styles.graphLineBlue, { bottom: `${mevcutYuzde}%` }]} />
                 <View style={[styles.graphDot, { left: '12%', bottom: `${mevcutYuzde - 6}%` }]}>
                   <Text style={styles.dotText}>{kisalt(netMevcutDurum)}</Text>
@@ -609,7 +594,6 @@ export default function App() {
               <Text style={styles.boxValueWhite}>{paraGoster(kullanilabilirNakitGucu)}</Text>
             </View>
 
-            {/* GELİR / GİDER HAREKETLERİ */}
             {(finansSubTab === 'genel' || finansSubTab === 'islemler') && (
               <View style={{ marginBottom: 15 }}>
                 <Text style={styles.sectionTitle}>Son Gelir &amp; Gider Hareketleri</Text>
@@ -646,7 +630,6 @@ export default function App() {
               </View>
             )}
 
-            {/* BANKALAR */}
             {(finansSubTab === 'genel' || finansSubTab === 'bankalar') && (
               <View style={{ marginBottom: 15 }}>
                 <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
@@ -676,7 +659,6 @@ export default function App() {
               </View>
             )}
 
-            {/* KREDİLER (Sadece Borç Takibi) */}
             {(finansSubTab === 'genel' || finansSubTab === 'krediler') && (
               <View style={{ marginBottom: 15 }}>
                 <View style={styles.rowBetween}>
@@ -713,7 +695,6 @@ export default function App() {
               </View>
             )}
 
-            {/* ALACAKLILAR */}
             {(finansSubTab === 'genel' || finansSubTab === 'alacaklilar') && (
               <View style={{ marginBottom: 15 }}>
                 <Text style={styles.sectionTitle}>Alacaklılar Listesi</Text>
@@ -744,7 +725,6 @@ export default function App() {
           </View>
         )}
 
-        {/* PORTFÖY & TALEP SEKMESİ */}
         {activeTab === 'portfoy' && (
           <View>
             <View style={styles.rowBetween}>
@@ -841,7 +821,6 @@ export default function App() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* VERİ EKLEME / DÜZENLEME MODALI */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -853,7 +832,6 @@ export default function App() {
                 : 'Yeni Kayıt Ekle'}
             </Text>
 
-            {/* GELİR / GİDER ÖZEL FORMU */}
             {modalType === 'islem' && (
               <>
                 <View style={styles.row}>
@@ -1083,7 +1061,6 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Alt Navigasyon Çubuğu */}
       <View style={styles.navBar}>
         <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('ozet')}>
           <Text style={[styles.navText, activeTab === 'ozet' && styles.activeNavText]}>🏠 Özet</Text>
