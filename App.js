@@ -32,6 +32,9 @@ export default function App() {
   const [talepKategori, setTalepKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
   const [seciliBankaId, setSeciliBankaId] = useState('');
 
+  // Grafik Tooltip Seçili Ay State'i
+  const [seciliAyIndex, setSeciliAyIndex] = useState(7); // Varsayılan Ağustos (Ağu)
+
   // Form State'leri
   const [input1, setInput1] = useState('');
   const [input2, setInput2] = useState('');
@@ -191,7 +194,6 @@ export default function App() {
 
   const isKarda = netMevcutDurum >= 0;
   const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
-  const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.18)' : 'rgba(255, 77, 77, 0.18)';
 
   // 1'e 1 BİREBİR EŞLEŞME MOTORU
   const gecerliEslesmeBul = () => {
@@ -216,13 +218,17 @@ export default function App() {
 
   const aktifEslesme = gecerliEslesmeBul();
 
-  // 12 AYLIK VERİ
+  // 12 AYLIK DİNAMİK GRAFİK VERİLERİ (Nakit ve Potansiyel)
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   
   const aylikNakitVerileri = aylarListesi.map((_, index) => {
-    if (index < 9) return -50000;
-    const oran = (index - 8) / 3;
-    return Math.round(netMevcutDurum * oran);
+    const carpan = (index + 1) / 12;
+    return Math.round(netMevcutDurum * carpan);
+  });
+
+  const aylikPotansiyelVerileri = aylarListesi.map((_, index) => {
+    const carpan = (index + 1) / 12;
+    return Math.round(potansiyelDurum * carpan);
   });
 
   const islemModaliniAc = (tur = 'gelir') => {
@@ -516,7 +522,7 @@ export default function App() {
     return (isNeg ? '-' : '+') + res;
   };
 
-  const maxSkala = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 655000);
+  const maxSkala = 655000; // İstenen -655k ile +655k arası skala
 
   if (isLoading) {
     return (
@@ -686,6 +692,7 @@ export default function App() {
               ))}
             </ScrollView>
 
+            {/* İSTEDİĞİN ÇİFT SERİLİ İNTERAKTİF GRADYAN GRAFİK */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -701,53 +708,75 @@ export default function App() {
                 </Text>
               </View>
 
+              {/* Lejant (Açıklama) */}
               <View style={styles.legendRow}>
-                <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>― Nakit: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>― Potansiyel: {paraGoster(potansiyelDurum)}</Text>
+                <Text style={styles.legendRed}>― Nakit (Vişne Kırmızısı)</Text>
+                <Text style={styles.legendGreen}>― Potansiyel (Yeşil)</Text>
               </View>
 
+              {/* İNTERAKTİF GRAFİK ALANI (-655k ile +655k arası) */}
               <View style={styles.chartBodyWrapper}>
                 <View style={styles.yAxisLabels}>
-                  <Text style={styles.axisText}>{kisalt(maxSkala)}</Text>
-                  <Text style={styles.axisText}>{kisalt(maxSkala / 2)}</Text>
+                  <Text style={styles.axisText}>+655k</Text>
+                  <Text style={styles.axisText}>+328k</Text>
                   <Text style={styles.axisText}>0 ₺</Text>
-                  <Text style={styles.axisText}>{kisalt(-maxSkala / 2)}</Text>
-                  <Text style={styles.axisText}>{kisalt(-maxSkala)}</Text>
+                  <Text style={styles.axisText}>-328k</Text>
+                  <Text style={styles.axisText}>-655k</Text>
                 </View>
 
-                <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                  <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '20%', height: '60%' }]} />
+                <View style={styles.graphVisualContainer}>
                   <View style={styles.graphBaseLine} />
 
+                  {/* Ay Seçim Butonları / Sütunları */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
-                      const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
-                      const degeri = aylikNakitVerileri[idx];
-                      const isPozitif = degeri >= 0;
-                      const barYukseklik = Math.min(Math.abs(degeri / maxSkala) * 45, 42);
+                      const nakitDeger = aylikNakitVerileri[idx];
+                      const potDeger = aylikPotansiyelVerileri[idx];
+                      const isSecili = seciliAyIndex === idx;
 
                       return (
-                        <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
+                        <TouchableOpacity
+                          key={idx}
+                          style={[styles.ayDokunmaNoktasi, isSecili && styles.aySeciliArka]}
+                          onPress={() => setSeciliAyIndex(idx)}
+                        >
+                          {/* Üstteki Potansiyel Gradyan Sütun (Yeşil) */}
                           <View
                             style={[
-                              styles.grafikBarSutun,
+                              styles.grafikBarPotansiyel,
                               {
-                                height: barYukseklik || 4,
-                                backgroundColor: isPozitif ? '#00ff7f' : '#ff4d4d',
-                                [isPozitif ? 'bottom' : 'top']: '50%',
+                                height: `${Math.min(Math.abs(potDeger / maxSkala) * 45, 45)}%`,
                               },
                             ]}
                           />
-                          <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
-                        </View>
+                          {/* Alttaki Nakit Gradyan Sütun (Vişne Kırmızısı) */}
+                          <View
+                            style={[
+                              styles.grafikBarNakit,
+                              {
+                                height: `${Math.min(Math.abs(nakitDeger / maxSkala) * 45, 45)}%`,
+                              },
+                            ]}
+                          />
+                          <Text style={[styles.ayEtiketiYazi, isSecili && { color: '#00ff7f', fontWeight: '900' }]}>
+                            {ayAdi}
+                          </Text>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
 
+                  {/* Tıklanan Aya Ait İnteraktif Koyu Tema Tooltip (Baloncuk) */}
                   <View style={styles.popupBalonKutusu}>
-                    <Text style={styles.popupBaslik}>Potansiyel: +₺615k</Text>
-                    <Text style={styles.popupAlt}>Nakit: -₺210k</Text>
-                    <Text style={styles.popupDetayBtn}>Ağu Detayı</Text>
+                    <Text style={styles.popupBaslik}>
+                      Potansiyel: {paraGoster(aylikPotansiyelVerileri[seciliAyIndex])}
+                    </Text>
+                    <Text style={styles.popupAlt}>
+                      Nakit: {paraGoster(aylikNakitVerileri[seciliAyIndex])}
+                    </Text>
+                    <Text style={styles.popupDetayBtn}>
+                      {aylarListesi[seciliAyIndex]} Detayı
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -1411,27 +1440,29 @@ const styles = StyleSheet.create({
   bilancoDeger: { fontSize: 12, fontWeight: 'bold' },
 
   legendRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 },
-  legendBlue: { fontSize: 10, fontWeight: 'bold' },
-  legendGold: { color: '#ffd700', fontSize: 10, fontWeight: 'bold' },
+  legendRed: { color: '#a8002a', fontSize: 11, fontWeight: 'bold' },
+  legendGreen: { color: '#00ff7f', fontSize: 11, fontWeight: 'bold' },
   profitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
   
   chartBodyWrapper: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  yAxisLabels: { width: 56, justifyContent: 'space-between', height: 130, paddingVertical: 4, paddingRight: 4, alignItems: 'flex-end' },
-  axisText: { color: '#777', fontSize: 8, fontWeight: '600' },
+  yAxisLabels: { width: 50, justifyContent: 'space-between', height: 140, paddingVertical: 4, paddingRight: 4, alignItems: 'flex-end' },
+  axisText: { color: '#777', fontSize: 9, fontWeight: '600' },
 
-  graphVisualContainer: { flex: 1, height: 130, position: 'relative', justifyContent: 'center', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
-  blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
-  graphBaseLine: { position: 'absolute', bottom: '50%', left: 0, right: 0, height: 1, backgroundColor: '#333' },
+  graphVisualContainer: { flex: 1, height: 140, position: 'relative', backgroundColor: '#131815', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222', flexDirection: 'row', alignItems: 'center' },
+  graphBaseLine: { position: 'absolute', top: '50%', left: 0, right: 0, height: 1, backgroundColor: '#333' },
   
-  ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
-  ayNoktaWrapper: { position: 'absolute', bottom: 6, alignItems: 'center', width: 22, marginLeft: -11 },
-  grafikBarSutun: { position: 'absolute', width: 6, borderRadius: 3, opacity: 0.85 },
-  ayEtiketiYazi: { color: '#888', fontSize: 8, fontWeight: '600', position: 'absolute', bottom: 2 },
+  ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', paddingBottom: 6, paddingHorizontal: 4 },
+  ayDokunmaNoktasi: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 2 },
+  aySeciliArka: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 6 },
+  
+  grafikBarPotansiyel: { width: 5, backgroundColor: '#00ff7f', borderTopLeftRadius: 3, borderTopRightRadius: 3, opacity: 0.85, marginBottom: 2 },
+  grafikBarNakit: { width: 5, backgroundColor: '#a8002a', borderTopLeftRadius: 3, borderTopRightRadius: 3, opacity: 0.9, marginBottom: 14 },
+  ayEtiketiYazi: { color: '#888', fontSize: 9, fontWeight: '600', position: 'absolute', bottom: 2 },
 
-  popupBalonKutusu: { position: 'absolute', right: 12, top: 22, backgroundColor: '#11221c', borderWidth: 1, borderColor: '#00ff7f', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, shadowColor: '#00ff7f', shadowOpacity: 0.3, shadowRadius: 6, elevation: 5 },
+  popupBalonKutusu: { position: 'absolute', right: 10, top: 10, backgroundColor: '#11221c', borderWidth: 1, borderColor: '#00ff7f', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, shadowColor: '#00ff7f', shadowOpacity: 0.3, shadowRadius: 6, elevation: 5 },
   popupBaslik: { color: '#00ff7f', fontSize: 10, fontWeight: 'bold' },
-  popupAlt: { color: '#ff4d4d', fontSize: 10, fontWeight: 'bold', marginVertical: 1 },
+  popupAlt: { color: '#a8002a', fontSize: 10, fontWeight: 'bold', marginVertical: 1 },
   popupDetayBtn: { color: '#aaa', fontSize: 8, textAlign: 'center', marginTop: 2, textDecorationLine: 'underline' },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
