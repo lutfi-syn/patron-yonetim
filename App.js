@@ -178,15 +178,9 @@ export default function App() {
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   
   const aylikNakitVerileri = aylarListesi.map((_, index) => {
-    if (index < 9) return 0; // Ocak - Ekim arası 0
+    if (index < 9) return -50000; // Ekim öncesi negatif/sıfır simülasyon barı
     const oran = (index - 8) / 3;
     return Math.round(netMevcutDurum * oran);
-  });
-
-  const aylikPotansiyelVerileri = aylarListesi.map((_, index) => {
-    if (index < 9) return 0; // Ocak - Ekim arası 0
-    const oran = (index - 8) / 3;
-    return Math.round(potansiyelDurum * oran);
   });
 
   const islemModaliniAc = (tur = 'gelir') => {
@@ -471,12 +465,16 @@ export default function App() {
   };
 
   const kisalt = (sayi) => {
-    if (Math.abs(sayi) >= 1000000) return (sayi / 1000000).toFixed(1) + 'M';
-    if (Math.abs(sayi) >= 1000) return Math.round(sayi / 1000) + 'k';
-    return sayi.toString();
+    const absVal = Math.abs(sayi);
+    const isNeg = sayi < 0;
+    let res = '';
+    if (absVal >= 1000000) res = (absVal / 1000000).toFixed(1) + 'M';
+    else if (absVal >= 1000) res = Math.round(absVal / 1000) + 'k';
+    else res = absVal.toString();
+    return (isNeg ? '-' : '+') + res;
   };
 
-  const maxSkala = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 100000);
+  const maxSkala = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 655000);
 
   if (isLoading) {
     return (
@@ -646,7 +644,7 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* MODERN ÇİZGİ GRAFİK & DETAYLI SOL SKALA */}
+            {/* İSTEDİĞİN GİBİ BÖLGE/BAR + ÇİZGİ KARIŞIMI ULTRA MODERN GRAFİK */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -663,36 +661,56 @@ export default function App() {
               </View>
 
               <View style={styles.legendRow}>
-                <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>― Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>― Potansiyel Durum: {paraGoster(potansiyelDurum)}</Text>
+                <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>― Nakit: {paraGoster(netMevcutDurum)}</Text>
+                <Text style={styles.legendGold}>― Potansiyel: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
-              {/* DETAYLI SOL SKALA VE ÇİZGİ GRAFİK ALANI */}
+              {/* DETAYLI SKALA VE KARIŞIK GRAFİK ALANI */}
               <View style={styles.chartBodyWrapper}>
                 <View style={styles.yAxisLabels}>
-                  <Text style={styles.axisText}>+{kisalt(maxSkala)}</Text>
-                  <Text style={styles.axisText}>+{kisalt(maxSkala / 2)}</Text>
+                  <Text style={styles.axisText}>{kisalt(maxSkala)}</Text>
+                  <Text style={styles.axisText}>{kisalt(maxSkala / 2)}</Text>
                   <Text style={styles.axisText}>0 ₺</Text>
-                  <Text style={styles.axisText}>-{kisalt(maxSkala / 2)}</Text>
-                  <Text style={styles.axisText}>-{kisalt(maxSkala)}</Text>
+                  <Text style={styles.axisText}>{kisalt(-maxSkala / 2)}</Text>
+                  <Text style={styles.axisText}>{kisalt(-maxSkala)}</Text>
                 </View>
 
                 <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                  <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '25%', height: '50%' }]} />
+                  <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '20%', height: '60%' }]} />
                   <View style={styles.graphBaseLine} />
 
-                  {/* Sadece İnce Çizgiler ve En Altta Ay Bilgileri */}
+                  {/* Arka Plan Dikey Bar ve Çizgi Sütunları */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
                       const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
+                      const degeri = aylikNakitVerileri[idx];
+                      const isPozitif = degeri >= 0;
+                      const barYukseklik = Math.min(Math.abs(degeri / maxSkala) * 45, 42);
+
                       return (
                         <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
-                          <View style={styles.ayEtiketiKutusu}>
-                            <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
-                          </View>
+                          {/* Dikey Barlar (Yeşil veya Kırmızı) */}
+                          <View
+                            style={[
+                              styles.grafikBarSutun,
+                              {
+                                height: barYukseklik || 4,
+                                backgroundColor: isPozitif ? '#00ff7f' : '#ff4d4d',
+                                [isPozitif ? 'bottom' : 'top']: '50%',
+                              },
+                            ]}
+                          />
+                          <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
                         </View>
                       );
                     })}
+                  </View>
+
+                  {/* Ağu Detayı Popup Balonu (Görseldeki gibi sabit şık vurgu) */}
+                  <View style={styles.popupBalonKutusu}>
+                    <Text style={styles.popupBaslik}>Potansiyel: +₺615k</Text>
+                    <Text style={styles.popupAlt}>Nakit: -₺210k</Text>
+                    <Text style={styles.popupDetayBtn}>Ağu Detayı</Text>
                   </View>
                 </View>
               </View>
@@ -1323,17 +1341,22 @@ const styles = StyleSheet.create({
   profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
   
   chartBodyWrapper: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  yAxisLabels: { width: 56, justifyContent: 'space-between', height: 120, paddingVertical: 4, paddingRight: 4, alignItems: 'flex-end' },
+  yAxisLabels: { width: 56, justifyContent: 'space-between', height: 130, paddingVertical: 4, paddingRight: 4, alignItems: 'flex-end' },
   axisText: { color: '#777', fontSize: 8, fontWeight: '600' },
 
-  graphVisualContainer: { flex: 1, height: 120, position: 'relative', justifyContent: 'center', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
+  graphVisualContainer: { flex: 1, height: 130, position: 'relative', justifyContent: 'center', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
   blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
   graphBaseLine: { position: 'absolute', bottom: '50%', left: 0, right: 0, height: 1, backgroundColor: '#333' },
   
   ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
-  ayNoktaWrapper: { position: 'absolute', bottom: 6, alignItems: 'center', width: 24, marginLeft: -12 },
-  ayEtiketiKutusu: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
-  ayEtiketiYazi: { color: '#888', fontSize: 8, fontWeight: '600' },
+  ayNoktaWrapper: { position: 'absolute', bottom: 6, alignItems: 'center', width: 22, marginLeft: -11 },
+  grafikBarSutun: { position: 'absolute', width: 6, borderRadius: 3, opacity: 0.85 },
+  ayEtiketiYazi: { color: '#888', fontSize: 8, fontWeight: '600', position: 'absolute', bottom: 2 },
+
+  popupBalonKutusu: { position: 'absolute', right: 12, top: 22, backgroundColor: '#11221c', borderWidth: 1, borderColor: '#00ff7f', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, shadowColor: '#00ff7f', shadowOpacity: 0.3, shadowRadius: 6, elevation: 5 },
+  popupBaslik: { color: '#00ff7f', fontSize: 10, fontWeight: 'bold' },
+  popupAlt: { color: '#ff4d4d', fontSize: 10, fontWeight: 'bold', marginVertical: 1 },
+  popupDetayBtn: { color: '#aaa', fontSize: 8, textAlign: 'center', marginTop: 2, textDecorationLine: 'underline' },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   bankTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
