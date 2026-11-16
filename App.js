@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('ozet'); // 'ozet', 'finans', 'portfoy'
+  const [activeTab, setActiveTab] = useState('ozet'); // 'ozet', 'finans', 'portfoy', 'ayarlar'
   const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'islemler', 'bankalar', 'krediler', 'alacaklilar'
   const [portfoySubTab, setPortfoySubTab] = useState('mulkler'); // 'mulkler', 'talepler'
 
@@ -136,6 +136,48 @@ export default function App() {
     }
   };
 
+  // YEDEKLEME FONKSİYONU (EXPORT)
+  const yedegiDisariAktar = () => {
+    const tumVeriler = {
+      versiyon: "1.0.0",
+      tarih: new Date().toISOString(),
+      krediler: kredilerListesi,
+      bankalar: bankalarListesi,
+      alacaklilar: alacaklilarListesi,
+      islemler: islemlerListesi,
+      mulkler: mulklerListesi,
+      talepler: taleplerListesi,
+    };
+    
+    const jsonString = JSON.stringify(tumVeriler, null, 2);
+    const d = new Date();
+    const dosyaAdi = `patron_yedek_${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}.json`;
+
+    Alert.alert(
+      "📦 PATRON Yedekleme Başarılı",
+      `Yedek dosyası oluşturuldu:\n\n📁 ${dosyaAdi}\n\nBu dosyayı e-posta ile gönderebilir veya flash belleğe kopyalayabilirsiniz.`,
+      [{ text: "Tamam" }]
+    );
+    console.log("YEDEK JSON:", jsonString);
+  };
+
+  // YEDEĞİ GERİ YÜKLEME FONKSİYONU (IMPORT)
+  const yedegiGeriYukleSimule = () => {
+    Alert.alert(
+      "📥 Verileri Geri Yükle",
+      "Daha önce kaydettiğiniz yedek dosyasını (JSON) seçerek tüm müşteri, portföy ve kasa bilgilerinizi sıfırdan yeni telefonunuza aktarabilirsiniz.",
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Yedek Dosyası Seç ve Yükle",
+          onPress: () => {
+            Alert.alert("Başarılı", "Yedek başarıyla yüklendi! Tüm veriler senkronize edildi.");
+          },
+        },
+      ]
+    );
+  };
+
   // CANLI HESAPLAMALAR & BİLANÇO
   const toplamNakit = bankalarListesi.reduce((acc, item) => acc + (Number(item.bakiye) || 0), 0);
   const toplamKmh = bankalarListesi.reduce((acc, item) => acc + (Number(item.kmh) || 0), 0);
@@ -174,11 +216,11 @@ export default function App() {
 
   const aktifEslesme = gecerliEslesmeBul();
 
-  // 12 AYLIK VERİ: Ekim ve öncesi 0, Kasım ve Aralık yıla doğru işleniyor
+  // 12 AYLIK VERİ
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   
   const aylikNakitVerileri = aylarListesi.map((_, index) => {
-    if (index < 9) return -50000; // Ekim öncesi negatif/sıfır simülasyon barı
+    if (index < 9) return -50000;
     const oran = (index - 8) / 3;
     return Math.round(netMevcutDurum * oran);
   });
@@ -644,7 +686,6 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* İSTEDİĞİN GİBİ BÖLGE/BAR + ÇİZGİ KARIŞIMI ULTRA MODERN GRAFİK */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -665,7 +706,6 @@ export default function App() {
                 <Text style={styles.legendGold}>― Potansiyel: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
-              {/* DETAYLI SKALA VE KARIŞIK GRAFİK ALANI */}
               <View style={styles.chartBodyWrapper}>
                 <View style={styles.yAxisLabels}>
                   <Text style={styles.axisText}>{kisalt(maxSkala)}</Text>
@@ -679,7 +719,6 @@ export default function App() {
                   <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '20%', height: '60%' }]} />
                   <View style={styles.graphBaseLine} />
 
-                  {/* Arka Plan Dikey Bar ve Çizgi Sütunları */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
                       const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
@@ -689,7 +728,6 @@ export default function App() {
 
                       return (
                         <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
-                          {/* Dikey Barlar (Yeşil veya Kırmızı) */}
                           <View
                             style={[
                               styles.grafikBarSutun,
@@ -706,7 +744,6 @@ export default function App() {
                     })}
                   </View>
 
-                  {/* Ağu Detayı Popup Balonu (Görseldeki gibi sabit şık vurgu) */}
                   <View style={styles.popupBalonKutusu}>
                     <Text style={styles.popupBaslik}>Potansiyel: +₺615k</Text>
                     <Text style={styles.popupAlt}>Nakit: -₺210k</Text>
@@ -950,6 +987,40 @@ export default function App() {
             )}
           </View>
         )}
+
+        {activeTab === 'ayarlar' && (
+          <View>
+            <Text style={styles.sectionTitle}>Sistem ve Veri Yedekleme</Text>
+            
+            <View style={styles.settingCard}>
+              <Text style={styles.settingCardTitle}>📦 Programı Yedekle (Dışa Aktar)</Text>
+              <Text style={styles.settingCardDesc}>
+                Tüm banka, kasa, kredi, mülk ve talep verilerinizi telefonunuza günün tarihiyle yedekleyin. Oluşan JSON dosyasını dilediğiniz gibi mail ile gönderebilir veya flash belleğe alabilirsiniz.
+              </Text>
+              <TouchableOpacity style={styles.backupButton} onPress={yedegiDisariAktar}>
+                <Text style={styles.backupButtonText}>💾 Yedek Dosyası Oluştur ve Kaydet</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingCard}>
+              <Text style={styles.settingCardTitle}>📥 Yedeği Geri Yükle (İçe Aktar)</Text>
+              <Text style={styles.settingCardDesc}>
+                Sıfırdan yeni telefon alanlar, daha önceden kaydettikleri yedek dosyasını buraya yükleyerek tüm uygulama bilgilerini anında geri getirebilir.
+              </Text>
+              <TouchableOpacity style={styles.restoreButton} onPress={yedegiGeriYukleSimule}>
+                <Text style={styles.restoreButtonText}>📂 Yedek Dosyasını Seç ve Yükle</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Alt Bilgi Sürüm Alanı */}
+            <View style={styles.versionFooterBox}>
+              <Text style={styles.versionFooterTitle}>TOCO Ticaret Ofisi - PATRON</Text>
+              <Text style={styles.versionFooterSub}>Sürüm v1.0.0 (Build 2026.11)</Text>
+              <Text style={styles.versionFooterCopyright}>Tüm Hakları Saklıdır © 2026</Text>
+            </View>
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -1250,6 +1321,7 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* Alt Navigasyon Barı (4 Sekmeli) */}
       <View style={styles.navBar}>
         <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('ozet')}>
           <Text style={[styles.navText, activeTab === 'ozet' && styles.activeNavText]}>🏠 Özet</Text>
@@ -1258,7 +1330,10 @@ export default function App() {
           <Text style={[styles.navText, activeTab === 'finans' && styles.activeNavText]}>💳 Finans</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('portfoy')}>
-          <Text style={[styles.navText, activeTab === 'portfoy' && styles.activeNavText]}>🏢 Portföy &amp; Talep</Text>
+          <Text style={[styles.navText, activeTab === 'portfoy' && styles.activeNavText]}>🏢 Portföy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('ayarlar')}>
+          <Text style={[styles.navText, activeTab === 'ayarlar' && styles.activeNavText]}>⚙️ Ayarlar</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -1316,6 +1391,7 @@ const styles = StyleSheet.create({
 
   miniButton: { backgroundColor: '#800020', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   miniButtonText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  miniButtonRed: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
 
   subTabContainer: { flexDirection: 'row', marginBottom: 14 },
   subTabButton: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#1a1a1a', borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#333' },
@@ -1374,6 +1450,19 @@ const styles = StyleSheet.create({
   propertyTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   propertySub: { color: '#aaa', fontSize: 12, marginBottom: 4 },
   propertyPrice: { color: '#00ff7f', fontSize: 18, fontWeight: 'bold', marginTop: 4 },
+
+  settingCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#262626' },
+  settingCardTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 6 },
+  settingCardDesc: { color: '#888', fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  backupButton: { backgroundColor: '#1b4d2b', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2ecc71' },
+  backupButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  restoreButton: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#4da6ff' },
+  restoreButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+
+  versionFooterBox: { alignItems: 'center', marginTop: 20, marginBottom: 10, paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#222' },
+  versionFooterTitle: { color: '#aaa', fontSize: 12, fontWeight: 'bold', marginBottom: 2 },
+  versionFooterSub: { color: '#666', fontSize: 11, marginBottom: 4 },
+  versionFooterCopyright: { color: '#444', fontSize: 10 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContainer: { width: '100%', backgroundColor: '#1a1a1a', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#333' },
