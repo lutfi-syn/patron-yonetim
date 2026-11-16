@@ -151,7 +151,7 @@ export default function App() {
   const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
   const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.18)' : 'rgba(255, 77, 77, 0.18)';
 
-  // 1'e 1 BİREBİR EŞLEŞME MOTORU (Mülk Tipi ve İşlem Tipi Tam Uyuşmalı & Bütçe Yetmeli)
+  // 1'e 1 BİREBİR EŞLEŞME MOTORU
   const gecerliEslesmeBul = () => {
     for (let talep of taleplerListesi) {
       for (let mulk of mulklerListesi) {
@@ -174,33 +174,19 @@ export default function App() {
 
   const aktifEslesme = gecerliEslesmeBul();
 
-  // 12 AYLIK VERİ HESAPLAMA MOTORU
+  // 12 AYLIK VERİ: Ekim ve öncesi 0, Kasım ve Aralık yıla doğru işleniyor
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   
   const aylikNakitVerileri = aylarListesi.map((_, index) => {
-    const ayIndex = index + 1;
-    const ilgiliIslemler = islemlerListesi.filter(isl => {
-      if (!isl.tarih) return true;
-      const parca = isl.tarih.split('.');
-      if (parca.length >= 2) {
-        const islemAy = parseInt(parca[1], 10);
-        return islemAy <= ayIndex;
-      }
-      return true;
-    });
-
-    const netKatki = ilgiliIslemler.reduce((acc, cur) => {
-      return cur.tur === 'gelir' ? acc + cur.tutar : acc - cur.tutar;
-    }, 0);
-
-    const bazNakit = netMevcutDurum - netKatki;
-    return Math.round(bazNakit + netKatki * ((index + 1) / 12));
+    if (index < 9) return 0; // Ocak - Ekim arası 0
+    const oran = (index - 8) / 3;
+    return Math.round(netMevcutDurum * oran);
   });
 
   const aylikPotansiyelVerileri = aylarListesi.map((_, index) => {
-    const baz = potansiyelDurum;
-    const dalgalanma = (index - 6) * (baz * 0.02);
-    return Math.round(baz + dalgalanma);
+    if (index < 9) return 0; // Ocak - Ekim arası 0
+    const oran = (index - 8) / 3;
+    return Math.round(potansiyelDurum * oran);
   });
 
   const islemModaliniAc = (tur = 'gelir') => {
@@ -490,6 +476,8 @@ export default function App() {
     return sayi.toString();
   };
 
+  const maxSkala = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 100000);
+
   if (isLoading) {
     return (
       <View style={styles.splashContainer}>
@@ -658,7 +646,7 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* MODERN ÇİFT RENKLİ GRAFİK & SOL SKALA */}
+            {/* MODERN ÇİZGİ GRAFİK & DETAYLI SOL SKALA */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -675,35 +663,33 @@ export default function App() {
               </View>
 
               <View style={styles.legendRow}>
-                <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>◆ Potansiyel Durum: {paraGoster(potansiyelDurum)}</Text>
+                <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>― Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
+                <Text style={styles.legendGold}>― Potansiyel Durum: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
-              {/* GRAFİK ALANI VE SOL SKALA */}
+              {/* DETAYLI SOL SKALA VE ÇİZGİ GRAFİK ALANI */}
               <View style={styles.chartBodyWrapper}>
                 <View style={styles.yAxisLabels}>
-                  <Text style={styles.axisText}>{kisalt(Math.max(potansiyelDurum * 1.3, 100000))}</Text>
+                  <Text style={styles.axisText}>+{kisalt(maxSkala)}</Text>
+                  <Text style={styles.axisText}>+{kisalt(maxSkala / 2)}</Text>
                   <Text style={styles.axisText}>0 ₺</Text>
-                  <Text style={styles.axisText}>-{kisalt(Math.abs(netMevcutDurum * 0.5) || 50000)}</Text>
+                  <Text style={styles.axisText}>-{kisalt(maxSkala / 2)}</Text>
+                  <Text style={styles.axisText}>-{kisalt(maxSkala)}</Text>
                 </View>
 
                 <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                  {/* Arka plan modern blur gradyan */}
-                  <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '25%', height: '55%' }]} />
+                  <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '25%', height: '50%' }]} />
                   <View style={styles.graphBaseLine} />
-                  <View style={styles.zeroLineLabel}><Text style={styles.zeroText}>0</Text></View>
 
-                  {/* 12 Ay Noktaları ve Çift Renkli Çizgi Simülasyonu */}
+                  {/* Sadece İnce Çizgiler ve En Altta Ay Bilgileri */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
                       const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
                       return (
                         <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
-                          {/* Mevcut Nakit Noktası */}
-                          <View style={[styles.gizliAyNoktasi, { borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]} />
-                          {/* Potansiyel Durum Noktası (Altın Sarısı) */}
-                          <View style={[styles.gizliPotansiyelNokta]} />
-                          <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
+                          <View style={styles.ayEtiketiKutusu}>
+                            <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
+                          </View>
                         </View>
                       );
                     })}
@@ -1337,20 +1323,17 @@ const styles = StyleSheet.create({
   profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
   
   chartBodyWrapper: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  yAxisLabels: { width: 52, justifyContent: 'space-between', height: 110, paddingVertical: 6, paddingRight: 4, alignItems: 'flex-end' },
-  axisText: { color: '#666', fontSize: 9, fontWeight: '600' },
+  yAxisLabels: { width: 56, justifyContent: 'space-between', height: 120, paddingVertical: 4, paddingRight: 4, alignItems: 'flex-end' },
+  axisText: { color: '#777', fontSize: 8, fontWeight: '600' },
 
-  graphVisualContainer: { flex: 1, height: 110, position: 'relative', justifyContent: 'center', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
+  graphVisualContainer: { flex: 1, height: 120, position: 'relative', justifyContent: 'center', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
   blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
   graphBaseLine: { position: 'absolute', bottom: '50%', left: 0, right: 0, height: 1, backgroundColor: '#333' },
-  zeroLineLabel: { position: 'absolute', right: 6, bottom: '51%', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 4, borderRadius: 3 },
-  zeroText: { color: '#aaa', fontSize: 8 },
   
   ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
-  ayNoktaWrapper: { position: 'absolute', bottom: '38%', alignItems: 'center', width: 24, marginLeft: -12 },
-  gizliAyNoktasi: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, marginBottom: 6 },
-  gizliPotansiyelNokta: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#ffd700', position: 'absolute', top: -14 },
-  ayEtiketiYazi: { color: '#777', fontSize: 8, fontWeight: '600' },
+  ayNoktaWrapper: { position: 'absolute', bottom: 6, alignItems: 'center', width: 24, marginLeft: -12 },
+  ayEtiketiKutusu: { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
+  ayEtiketiYazi: { color: '#888', fontSize: 8, fontWeight: '600' },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   bankTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
