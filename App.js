@@ -38,6 +38,10 @@ export default function App() {
   const [input3, setInput3] = useState('');
   const [input4, setInput4] = useState('');
   const [input5, setInput5] = useState('');
+  const [islemTarihiInput, setIslemTarihiInput] = useState(''); // Gelir/Gider için tarih
+
+  // Canlı Saat & Tarih State'i
+  const [anlikZaman, setAnlikZaman] = useState('');
 
   // Veri Listeleri
   const [kredilerListesi, setKredilerListesi] = useState([]);
@@ -50,7 +54,7 @@ export default function App() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Garanti Binlik Ayraç Formatlayıcı (8.000.000)
+  // Garanti Binlik Ayraç Formatlayıcı
   const noktaKoy = (val) => {
     if (val === null || val === undefined || val === '') return '';
     const temiz = val.toString().replace(/\D/g, '');
@@ -72,6 +76,9 @@ export default function App() {
 
   useEffect(() => {
     veriYukle();
+    zamanGuncelle();
+    const timer = setInterval(zamanGuncelle, 60000); // Dakikada bir saati güncelle
+
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.timing(progressAnim, {
       toValue: 1,
@@ -81,7 +88,19 @@ export default function App() {
     }).start(() => {
       setTimeout(() => setIsLoading(false), 150);
     });
+
+    return () => clearInterval(timer);
   }, []);
+
+  const zamanGuncelle = () => {
+    const d = new Date();
+    const gun = String(d.getDate()).padStart(2, '0');
+    const ay = String(d.getMonth() + 1).padStart(2, '0');
+    const yil = d.getFullYear();
+    const saat = String(d.getHours()).padStart(2, '0');
+    const dakika = String(d.getMinutes()).padStart(2, '0');
+    setAnlikZaman(`${gun}.${ay}.${yil} - ${saat}:${dakika}`);
+  };
 
   const veriYukle = async () => {
     try {
@@ -111,7 +130,7 @@ export default function App() {
     }
   };
 
-  // CANLI FİNANSAL HESAPLAMALAR & YIL SONU BİLANÇO
+  // CANLI HESAPLAMALAR & BİLANÇO
   const toplamNakit = bankalarListesi.reduce((acc, item) => acc + (Number(item.bakiye) || 0), 0);
   const toplamKmh = bankalarListesi.reduce((acc, item) => acc + (Number(item.kmh) || 0), 0);
   const kullanilabilirNakitGucu = toplamNakit + toplamKmh;
@@ -120,14 +139,36 @@ export default function App() {
 
   const netMevcutDurum = toplamNakit;
   const potansiyelDurum = toplamNakit + toplamAlacak;
-
-  // Yıl Sonu Net Bilanço (Nakit + Alacaklar - Toplam Kredi Borç Yükü)
   const yilSonuNetBilanco = potansiyelDurum - toplamKrediBorcu;
 
-  // Hesap kârda mı ekside mi?
   const isKarda = netMevcutDurum >= 0;
   const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
   const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.15)' : 'rgba(255, 77, 77, 0.15)';
+
+  // 12 AYLIK VERİ HESAPLAMA MÖTÖRÜ (İşlemlerdeki tarihlere göre aylık bakiye evrimi)
+  const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  
+  const aylikNakitVerileri = aylarListesi.map((_, index) => {
+    const ayIndex = index + 1;
+    // O aya kadar yapılan gelir/giderleri süz ve bakiye değişimi simüle et
+    const ilgiliIslemler = islemlerListesi.filter(isl => {
+      if (!isl.tarih) return true;
+      const parca = isl.tarih.split('.');
+      if (parca.length >= 2) {
+        const islemAy = parseInt(parca[1], 10);
+        return islemAy <= ayIndex;
+      }
+      return true;
+    });
+
+    const netKatki = ilgiliIslemler.reduce((acc, cur) => {
+      return cur.tur === 'gelir' ? acc + cur.tutar : acc - cur.tutar;
+    }, 0);
+
+    // Trend dalgalanması için baz nakit üzerinden simülasyon
+    const bazNakit = netMevcutDurum - netKatki;
+    return Math.round(bazNakit + netKatki * ((index + 1) / 12));
+  });
 
   const islemModaliniAc = (tur = 'gelir') => {
     if (bankalarListesi.length === 0) {
@@ -141,6 +182,10 @@ export default function App() {
     setModalType('islem');
     setIslemTuru(tur);
     setSeciliBankaId(bankalarListesi[0].id);
+
+    // Varsayılan bugünün tarihi
+    const d = new Date();
+    setIslemTarihiInput(`${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`);
     setModalVisible(true);
   };
 
@@ -175,8 +220,9 @@ export default function App() {
       setBankalarListesi(guncelBankalar);
       veriKaydet('@patron_bankalar_v3', guncelBankalar);
 
-      const bugun = new Date();
-      const tarihMetni = `${bugun.getDate()}.${bugun.getMonth() + 1}.${bugun.getFullYear()}`;
+      const d = new Date();
+      const tarihMetni = islemTarihiInput.trim() || `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+      
       const yeniIslem = {
         id: Date.now().toString(),
         tur: islemTuru,
@@ -323,6 +369,7 @@ export default function App() {
     setInput3('');
     setInput4('');
     setInput5('');
+    setIslemTarihiInput('');
     setMulkKategori('Satılık');
     setTalepKategori('Satılık');
     setDuzenleId(null);
@@ -403,10 +450,6 @@ export default function App() {
     }
   };
 
-  const maksimumDeger = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 10000);
-  const mevcutYuzde = Math.min(Math.max((netMevcutDurum / maksimumDeger) * 35 + 45, 10), 80);
-  const potansiyelYuzde = Math.min(Math.max((potansiyelDurum / maksimumDeger) * 35 + 45, 5), 75);
-
   const kisalt = (sayi) => {
     if (Math.abs(sayi) >= 1000000) return (sayi / 1000000).toFixed(1) + 'M';
     if (Math.abs(sayi) >= 1000) return Math.round(sayi / 1000) + 'k';
@@ -438,6 +481,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
+      {/* Üst Başlık (Tarih ve Saat Eklendi) */}
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
           <Text style={styles.subHeaderText}>TOCO Ticaret Ofisi</Text>
@@ -445,11 +489,14 @@ export default function App() {
             <Text style={styles.patronBoxText}>PATRON</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.notificationBadge} onPress={() => setActiveTab('portfoy')}>
-          <Text style={styles.notificationText}>
-            🔔 {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? '1' : '0'} Eşleşme
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerRightGroup}>
+          <Text style={styles.liveClockText}>{anlikZaman}</Text>
+          <TouchableOpacity style={styles.notificationBadge} onPress={() => setActiveTab('portfoy')}>
+            <Text style={styles.notificationText}>
+              🔔 {taleplerListesi.length > 0 && mulklerListesi.length > 0 ? '1' : '0'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -576,16 +623,15 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* AYLIK GRAFİK & YIL SONU BİLANÇO KARTI */}
+            {/* 12 AYLIK BİLANÇO & TREND GRAFİĞİ */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
-                <Text style={styles.chartTitle}>📅 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
+                <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
                 <View style={[styles.profitBadge, { backgroundColor: isKarda ? '#1b4d2b' : '#3b1212' }]}>
                   <Text style={[styles.profitBadgeText, { color: grafikAnaRenk }]}>{paraGoster(netMevcutDurum)}</Text>
                 </View>
               </View>
               
-              {/* Yıl Sonu Özet Bilgi Şeridi */}
               <View style={styles.bilancoSeridi}>
                 <Text style={styles.bilancoText}>Yıl Sonu Tahmini Net Bilanço:</Text>
                 <Text style={[styles.bilancoDeger, { color: yilSonuNetBilanco >= 0 ? '#00ff7f' : '#ff4d4d' }]}>
@@ -595,45 +641,28 @@ export default function App() {
 
               <View style={styles.legendRow}>
                 <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>┄ Potansiyel (Alacaklı): {paraGoster(potansiyelDurum)}</Text>
+                <Text style={styles.legendGold}>┄ Potansiyel Alacaklı: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
+              {/* 12 AYLIK GÖLGE NOKTALI GRAFİK */}
               <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                {/* Blur / Gradyan Dolgu Efekti Katmanı */}
-                <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: `${mevcutYuzde / 2}%`, height: `${mevcutYuzde}%` }]} />
-                
+                <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '20%', height: '60%' }]} />
                 <View style={styles.graphBaseLine} />
 
-                {/* Potansiyel Alacak Çizgisi */}
-                <View style={[styles.graphLineGold, { bottom: `${potansiyelYuzde}%` }]} />
-                <View style={[styles.graphDotGold, { left: '8%', bottom: `${potansiyelYuzde - 6}%` }]}>
-                  <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
+                {/* 12 Ayrı Ay Noktası ve Trend Çizgileri */}
+                <View style={styles.ayNoktalariKapsayici}>
+                  {aylarListesi.map((ayAdi, idx) => {
+                    const yuzdeSol = `${(idx / 11) * 88 + 6}%`;
+                    const ayDegeri = aylikNakitVerileri[idx];
+                    return (
+                      <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
+                        {/* Bariz göze batmayan şık küçük noktalar */}
+                        <View style={[styles.gizliAyNoktasi, { borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]} />
+                        <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
-                <View style={[styles.graphDotGold, { left: '42%', bottom: `${potansiyelYuzde - 6}%` }]}>
-                  <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
-                </View>
-                <View style={[styles.graphDotGold, { left: '78%', bottom: `${potansiyelYuzde - 6}%` }]}>
-                  <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
-                </View>
-
-                {/* Mevcut Nakit Çizgisi (Dinamik Renkli: Yeşil / Kırmızı) */}
-                <View style={[styles.graphLineDynamic, { bottom: `${mevcutYuzde}%`, backgroundColor: grafikAnaRenk, shadowColor: grafikAnaRenk }]} />
-                <View style={[styles.graphDotDynamic, { left: '8%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
-                  <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
-                </View>
-                <View style={[styles.graphDotDynamic, { left: '42%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
-                  <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
-                </View>
-                <View style={[styles.graphDotDynamic, { left: '78%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
-                  <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
-                </View>
-              </View>
-
-              {/* AYLIK ETİKETLER (Yıl Sonu Bilançosu İçin) */}
-              <View style={styles.graphMonthsRow}>
-                <Text style={styles.monthText}>Ocak</Text>
-                <Text style={styles.monthText}>Haziran</Text>
-                <Text style={styles.monthText}>Aralık (Yıl Sonu)</Text>
               </View>
             </View>
 
@@ -874,6 +903,7 @@ export default function App() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      {/* MODAL */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -926,6 +956,13 @@ export default function App() {
                   keyboardType="numeric"
                   value={input2}
                   onChangeText={(txt) => setInput2(noktaKoy(txt))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="İşlem Tarihi (Örn: 15.06.2026)"
+                  placeholderTextColor="#666"
+                  value={islemTarihiInput}
+                  onChangeText={setIslemTarihiInput}
                 />
 
                 <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 8 }}>
@@ -1182,6 +1219,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#222' },
   headerLeftGroup: { flexDirection: 'column', alignItems: 'flex-start' },
+  headerRightGroup: { flexDirection: 'row', alignItems: 'center' },
+  liveClockText: { color: '#888', fontSize: 10, marginRight: 10, fontWeight: 'bold' },
   subHeaderText: { fontSize: 10, color: '#999', marginBottom: 4, letterSpacing: 0.5 },
   patronBox: { backgroundColor: '#1A050A', borderWidth: 1.5, borderColor: '#9E0B32', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 4, shadowColor: '#FF1A53', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.45, shadowRadius: 8, elevation: 4 },
   patronBoxText: { fontSize: 18, fontWeight: '900', color: '#FFFFFF', letterSpacing: 3 },
@@ -1219,7 +1258,6 @@ const styles = StyleSheet.create({
   statusText: { color: '#2ecc71', fontSize: 12, fontWeight: 'bold' },
 
   miniButton: { backgroundColor: '#800020', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  miniButtonRed: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   miniButtonText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
 
   subTabContainer: { flexDirection: 'row', marginBottom: 14 },
@@ -1248,14 +1286,11 @@ const styles = StyleSheet.create({
   graphVisualContainer: { height: 110, position: 'relative', justifyContent: 'center', marginVertical: 5, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
   blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
   graphBaseLine: { position: 'absolute', bottom: '45%', left: 0, right: 0, height: 1, backgroundColor: '#2a2a2a' },
-  graphLineDynamic: { position: 'absolute', left: '10%', right: '10%', height: 3, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 6, elevation: 5 },
-  graphLineGold: { position: 'absolute', left: '10%', right: '10%', height: 2, borderWidth: 1, borderColor: '#ffd700', borderStyle: 'dashed' },
-  graphDotDynamic: { position: 'absolute', paddingHorizontal: 6, height: 18, borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
-  graphDotGold: { position: 'absolute', paddingHorizontal: 5, height: 16, backgroundColor: '#332b00', borderRadius: 4, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#ffd700' },
-  dotTextDynamic: { fontSize: 9, fontWeight: 'bold' },
-  dotTextGold: { color: '#ffd700', fontSize: 9, fontWeight: 'bold' },
-  graphMonthsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10, marginTop: 8 },
-  monthText: { color: '#777', fontSize: 10 },
+  
+  ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  ayNoktaWrapper: { position: 'absolute', bottom: '40%', alignItems: 'center', width: 24, marginLeft: -12 },
+  gizliAyNoktasi: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, marginBottom: 6 },
+  ayEtiketiYazi: { color: '#666', fontSize: 8, fontWeight: '600' },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   bankTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
