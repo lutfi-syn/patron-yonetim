@@ -38,7 +38,7 @@ export default function App() {
   const [input3, setInput3] = useState('');
   const [input4, setInput4] = useState('');
   const [input5, setInput5] = useState('');
-  const [islemTarihiInput, setIslemTarihiInput] = useState(''); // Gelir/Gider için tarih
+  const [islemTarihiInput, setIslemTarihiInput] = useState('');
 
   // Canlı Saat & Tarih State'i
   const [anlikZaman, setAnlikZaman] = useState('');
@@ -77,7 +77,7 @@ export default function App() {
   useEffect(() => {
     veriYukle();
     zamanGuncelle();
-    const timer = setInterval(zamanGuncelle, 60000); // Dakikada bir saati güncelle
+    const timer = setInterval(zamanGuncelle, 60000);
 
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.timing(progressAnim, {
@@ -143,14 +143,13 @@ export default function App() {
 
   const isKarda = netMevcutDurum >= 0;
   const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
-  const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.15)' : 'rgba(255, 77, 77, 0.15)';
+  const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.18)' : 'rgba(255, 77, 77, 0.18)';
 
-  // 12 AYLIK VERİ HESAPLAMA MÖTÖRÜ (İşlemlerdeki tarihlere göre aylık bakiye evrimi)
+  // 12 AYLIK VERİ HESAPLAMA MOTORU
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   
   const aylikNakitVerileri = aylarListesi.map((_, index) => {
     const ayIndex = index + 1;
-    // O aya kadar yapılan gelir/giderleri süz ve bakiye değişimi simüle et
     const ilgiliIslemler = islemlerListesi.filter(isl => {
       if (!isl.tarih) return true;
       const parca = isl.tarih.split('.');
@@ -165,7 +164,6 @@ export default function App() {
       return cur.tur === 'gelir' ? acc + cur.tutar : acc - cur.tutar;
     }, 0);
 
-    // Trend dalgalanması için baz nakit üzerinden simülasyon
     const bazNakit = netMevcutDurum - netKatki;
     return Math.round(bazNakit + netKatki * ((index + 1) / 12));
   });
@@ -183,7 +181,6 @@ export default function App() {
     setIslemTuru(tur);
     setSeciliBankaId(bankalarListesi[0].id);
 
-    // Varsayılan bugünün tarihi
     const d = new Date();
     setIslemTarihiInput(`${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`);
     setModalVisible(true);
@@ -481,7 +478,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
-      {/* Üst Başlık (Tarih ve Saat Eklendi) */}
+      {/* Üst Başlık */}
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
           <Text style={styles.subHeaderText}>TOCO Ticaret Ofisi</Text>
@@ -623,7 +620,7 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* 12 AYLIK BİLANÇO & TREND GRAFİĞİ */}
+            {/* GELİŞMİŞ SOL MEBLAĞ SKALALI & BLUR DOLGULU GRAFİK */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -644,24 +641,36 @@ export default function App() {
                 <Text style={styles.legendGold}>┄ Potansiyel Alacaklı: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
-              {/* 12 AYLIK GÖLGE NOKTALI GRAFİK */}
-              <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '20%', height: '60%' }]} />
-                <View style={styles.graphBaseLine} />
+              {/* SOL MEBLAĞ SKALASI VE GRAFİK ALANI */}
+              <View style={styles.chartBodyWrapper}>
+                {/* Sol Yanda Meblağ Skalası (Üst, 0 Noktası, Alt) */}
+                <View style={styles.yAxisLabels}>
+                  <Text style={styles.axisText}>{kisalt(Math.max(netMevcutDurum * 1.5, 100000))}</Text>
+                  <Text style={styles.axisText}>0 ₺</Text>
+                  <Text style={styles.axisText}>-{kisalt(Math.abs(netMevcutDurum * 0.5) || 50000)}</Text>
+                </View>
 
-                {/* 12 Ayrı Ay Noktası ve Trend Çizgileri */}
-                <View style={styles.ayNoktalariKapsayici}>
-                  {aylarListesi.map((ayAdi, idx) => {
-                    const yuzdeSol = `${(idx / 11) * 88 + 6}%`;
-                    const ayDegeri = aylikNakitVerileri[idx];
-                    return (
-                      <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
-                        {/* Bariz göze batmayan şık küçük noktalar */}
-                        <View style={[styles.gizliAyNoktasi, { borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]} />
-                        <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
-                      </View>
-                    );
-                  })}
+                {/* Grafik Görsel Konteyneri */}
+                <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
+                  {/* Arka plan blur/gradyan dolgu efekti */}
+                  <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '25%', height: '55%' }]} />
+                  
+                  {/* 0 Noktası Yatay Çizgisi */}
+                  <View style={styles.graphBaseLine} />
+                  <View style={styles.zeroLineLabel}><Text style={styles.zeroText}>0</Text></View>
+
+                  {/* 12 Ayrı Ay Noktası */}
+                  <View style={styles.ayNoktalariKapsayici}>
+                    {aylarListesi.map((ayAdi, idx) => {
+                      const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
+                      return (
+                        <View key={idx} style={[styles.ayNoktaWrapper, { left: yuzdeSol }]}>
+                          <View style={[styles.gizliAyNoktasi, { borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]} />
+                          <Text style={styles.ayEtiketiYazi}>{ayAdi}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
             </View>
@@ -1283,14 +1292,21 @@ const styles = StyleSheet.create({
   profitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
   
-  graphVisualContainer: { height: 110, position: 'relative', justifyContent: 'center', marginVertical: 5, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
+  // Sol Meblağ Skalası ve Grafik Yerleşimi
+  chartBodyWrapper: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  yAxisLabels: { width: 52, justifyContent: 'space-between', height: 110, paddingVertical: 6, paddingRight: 4, alignItems: 'flex-end' },
+  axisText: { color: '#666', fontSize: 9, fontWeight: '600' },
+
+  graphVisualContainer: { flex: 1, height: 110, position: 'relative', justifyContent: 'center', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
   blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
-  graphBaseLine: { position: 'absolute', bottom: '45%', left: 0, right: 0, height: 1, backgroundColor: '#2a2a2a' },
+  graphBaseLine: { position: 'absolute', bottom: '50%', left: 0, right: 0, height: 1, backgroundColor: '#333' },
+  zeroLineLabel: { position: 'absolute', right: 6, bottom: '51%', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 4, borderRadius: 3 },
+  zeroText: { color: '#aaa', fontSize: 8 },
   
   ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
-  ayNoktaWrapper: { position: 'absolute', bottom: '40%', alignItems: 'center', width: 24, marginLeft: -12 },
+  ayNoktaWrapper: { position: 'absolute', bottom: '38%', alignItems: 'center', width: 24, marginLeft: -12 },
   gizliAyNoktasi: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, marginBottom: 6 },
-  ayEtiketiYazi: { color: '#666', fontSize: 8, fontWeight: '600' },
+  ayEtiketiYazi: { color: '#777', fontSize: 8, fontWeight: '600' },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   bankTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
