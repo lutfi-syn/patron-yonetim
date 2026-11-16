@@ -111,7 +111,7 @@ export default function App() {
     }
   };
 
-  // CANLI FİNANSAL HESAPLAMALAR
+  // CANLI FİNANSAL HESAPLAMALAR & YIL SONU BİLANÇO
   const toplamNakit = bankalarListesi.reduce((acc, item) => acc + (Number(item.bakiye) || 0), 0);
   const toplamKmh = bankalarListesi.reduce((acc, item) => acc + (Number(item.kmh) || 0), 0);
   const kullanilabilirNakitGucu = toplamNakit + toplamKmh;
@@ -121,9 +121,12 @@ export default function App() {
   const netMevcutDurum = toplamNakit;
   const potansiyelDurum = toplamNakit + toplamAlacak;
 
-  // Hesap kârda mı ekside mi? (Görsel tema için renk seçimi)
+  // Yıl Sonu Net Bilanço (Nakit + Alacaklar - Toplam Kredi Borç Yükü)
+  const yilSonuNetBilanco = potansiyelDurum - toplamKrediBorcu;
+
+  // Hesap kârda mı ekside mi?
   const isKarda = netMevcutDurum >= 0;
-  const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d'; // Yeşil veya Kırmızı/Vişne Çürüğü
+  const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
   const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.15)' : 'rgba(255, 77, 77, 0.15)';
 
   const islemModaliniAc = (tur = 'gelir') => {
@@ -573,53 +576,64 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* YENİ: DOLGULU, BLUR/GRADYAN EFEKTLİ VE DİNAMİK RENKLİ GRAFİK */}
+            {/* AYLIK GRAFİK & YIL SONU BİLANÇO KARTI */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
-                <Text style={styles.chartTitle}>Canlı Kasa &amp; Potansiyel Analizi</Text>
+                <Text style={styles.chartTitle}>📅 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
                 <View style={[styles.profitBadge, { backgroundColor: isKarda ? '#1b4d2b' : '#3b1212' }]}>
                   <Text style={[styles.profitBadgeText, { color: grafikAnaRenk }]}>{paraGoster(netMevcutDurum)}</Text>
                 </View>
               </View>
+              
+              {/* Yıl Sonu Özet Bilgi Şeridi */}
+              <View style={styles.bilancoSeridi}>
+                <Text style={styles.bilancoText}>Yıl Sonu Tahmini Net Bilanço:</Text>
+                <Text style={[styles.bilancoDeger, { color: yilSonuNetBilanco >= 0 ? '#00ff7f' : '#ff4d4d' }]}>
+                  {paraGoster(yilSonuNetBilanco)}
+                </Text>
+              </View>
+
               <View style={styles.legendRow}>
                 <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>┄ Alacak Dahil: {paraGoster(potansiyelDurum)}</Text>
+                <Text style={styles.legendGold}>┄ Potansiyel (Alacaklı): {paraGoster(potansiyelDurum)}</Text>
               </View>
 
               <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                {/* Blur / Gradyan Dolgu Efekti Katmanları */}
+                {/* Blur / Gradyan Dolgu Efekti Katmanı */}
                 <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: `${mevcutYuzde / 2}%`, height: `${mevcutYuzde}%` }]} />
                 
                 <View style={styles.graphBaseLine} />
 
                 {/* Potansiyel Alacak Çizgisi */}
                 <View style={[styles.graphLineGold, { bottom: `${potansiyelYuzde}%` }]} />
-                <View style={[styles.graphDotGold, { left: '12%', bottom: `${potansiyelYuzde - 6}%` }]}>
+                <View style={[styles.graphDotGold, { left: '8%', bottom: `${potansiyelYuzde - 6}%` }]}>
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
                 </View>
-                <View style={[styles.graphDotGold, { left: '48%', bottom: `${potansiyelYuzde - 6}%` }]}>
+                <View style={[styles.graphDotGold, { left: '42%', bottom: `${potansiyelYuzde - 6}%` }]}>
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
                 </View>
-                <View style={[styles.graphDotGold, { left: '82%', bottom: `${potansiyelYuzde - 6}%` }]}>
+                <View style={[styles.graphDotGold, { left: '78%', bottom: `${potansiyelYuzde - 6}%` }]}>
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
                 </View>
 
                 {/* Mevcut Nakit Çizgisi (Dinamik Renkli: Yeşil / Kırmızı) */}
                 <View style={[styles.graphLineDynamic, { bottom: `${mevcutYuzde}%`, backgroundColor: grafikAnaRenk, shadowColor: grafikAnaRenk }]} />
-                <View style={[styles.graphDotDynamic, { left: '12%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
+                <View style={[styles.graphDotDynamic, { left: '8%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
                   <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
                 </View>
-                <View style={[styles.graphDotDynamic, { left: '48%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
+                <View style={[styles.graphDotDynamic, { left: '42%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
                   <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
                 </View>
-                <View style={[styles.graphDotDynamic, { left: '82%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
+                <View style={[styles.graphDotDynamic, { left: '78%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
                   <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
                 </View>
               </View>
+
+              {/* AYLIK ETİKETLER (Yıl Sonu Bilançosu İçin) */}
               <View style={styles.graphMonthsRow}>
-                <Text style={styles.monthText}>Başlangıç</Text>
-                <Text style={styles.monthText}>Güncel Nakit</Text>
-                <Text style={styles.monthText}>Tahsilat Sonrası</Text>
+                <Text style={styles.monthText}>Ocak</Text>
+                <Text style={styles.monthText}>Haziran</Text>
+                <Text style={styles.monthText}>Aralık (Yıl Sonu)</Text>
               </View>
             </View>
 
@@ -1220,13 +1234,17 @@ const styles = StyleSheet.create({
 
   chartCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#262626' },
   chartTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  
+  bilancoSeridi: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#141414', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, marginVertical: 8, borderWidth: 1, borderColor: '#222' },
+  bilancoText: { color: '#aaa', fontSize: 11, fontWeight: 'bold' },
+  bilancoDeger: { fontSize: 12, fontWeight: 'bold' },
+
   legendRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 },
   legendBlue: { fontSize: 10, fontWeight: 'bold' },
   legendGold: { color: '#ffd700', fontSize: 10, fontWeight: 'bold' },
   profitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
   
-  // Blur / Gradyan Dolgulu Grafik Stilleri
   graphVisualContainer: { height: 110, position: 'relative', justifyContent: 'center', marginVertical: 5, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
   blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
   graphBaseLine: { position: 'absolute', bottom: '45%', left: 0, right: 0, height: 1, backgroundColor: '#2a2a2a' },
