@@ -18,15 +18,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ozet'); // 'ozet', 'finans', 'portfoy'
-  const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'bankalar', 'krediler', 'alacaklilar'
+  const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'islemler', 'bankalar', 'krediler', 'alacaklilar'
   const [portfoySubTab, setPortfoySubTab] = useState('mulkler'); // 'mulkler', 'talepler'
 
   // Modal State'leri
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep'
+  const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep', 'islem'
   const [duzenleId, setDuzenleId] = useState(null);
 
-  // Genişletilmiş Form State'leri (5 alana kadar destekler)
+  // Gelir / Gider Özel State'leri
+  const [islemTuru, setIslemTuru] = useState('gelir'); // 'gelir' veya 'gider'
+  const [seciliBankaId, setSeciliBankaId] = useState('');
+
+  // Form State'leri
   const [input1, setInput1] = useState('');
   const [input2, setInput2] = useState('');
   const [input3, setInput3] = useState('');
@@ -37,13 +41,14 @@ export default function App() {
   const [kredilerListesi, setKredilerListesi] = useState([]);
   const [bankalarListesi, setBankalarListesi] = useState([]);
   const [alacaklilarListesi, setAlacaklilarListesi] = useState([]);
+  const [islemlerListesi, setIslemlerListesi] = useState([]);
   const [mulklerListesi, setMulklerListesi] = useState([]);
   const [taleplerListesi, setTaleplerListesi] = useState([]);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Garanti Binlik Ayraç Formatlayıcı (Android/iOS tam uyumlu: 8.000.000)
+  // Garanti Binlik Ayraç Formatlayıcı (8.000.000)
   const noktaKoy = (val) => {
     if (val === null || val === undefined || val === '') return '';
     const temiz = val.toString().replace(/\D/g, '');
@@ -78,15 +83,17 @@ export default function App() {
 
   const veriYukle = async () => {
     try {
-      const k = await AsyncStorage.getItem('@patron_krediler_v2');
-      const b = await AsyncStorage.getItem('@patron_bankalar_v2');
-      const a = await AsyncStorage.getItem('@patron_alacaklilar_v2');
-      const m = await AsyncStorage.getItem('@patron_mulkler_v2');
-      const t = await AsyncStorage.getItem('@patron_talepler_v2');
+      const k = await AsyncStorage.getItem('@patron_krediler_v3');
+      const b = await AsyncStorage.getItem('@patron_bankalar_v3');
+      const a = await AsyncStorage.getItem('@patron_alacaklilar_v3');
+      const i = await AsyncStorage.getItem('@patron_islemler_v3');
+      const m = await AsyncStorage.getItem('@patron_mulkler_v3');
+      const t = await AsyncStorage.getItem('@patron_talepler_v3');
 
       if (k !== null) setKredilerListesi(JSON.parse(k));
       if (b !== null) setBankalarListesi(JSON.parse(b));
       if (a !== null) setAlacaklilarListesi(JSON.parse(a));
+      if (i !== null) setIslemlerListesi(JSON.parse(i));
       if (m !== null) setMulklerListesi(JSON.parse(m));
       if (t !== null) setTaleplerListesi(JSON.parse(t));
     } catch (e) {
@@ -102,19 +109,83 @@ export default function App() {
     }
   };
 
-  // CANLI FİNANSAL HESAPLAMALAR
+  // CANLI FİNANSAL HESAPLAMALAR (Krediler nakitten düşülmez, sadece borç takibidir)
   const toplamNakit = bankalarListesi.reduce((acc, item) => acc + (Number(item.bakiye) || 0), 0);
   const toplamKmh = bankalarListesi.reduce((acc, item) => acc + (Number(item.kmh) || 0), 0);
   const kullanilabilirNakitGucu = toplamNakit + toplamKmh;
   const toplamAlacak = alacaklilarListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
-  const toplamAylikKredi = kredilerListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
-  const netMevcutDurum = toplamNakit - toplamAylikKredi;
-  const potansiyelDurum = netMevcutDurum + toplamAlacak;
+  const toplamKrediBorcu = kredilerListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
+
+  // Grafik İçin: Mevcut Nakit vs Potansiyel Alacaklı Nakit
+  const netMevcutDurum = toplamNakit;
+  const potansiyelDurum = toplamNakit + toplamAlacak;
+
+  const islemModaliniAc = (tur = 'gelir') => {
+    if (bankalarListesi.length === 0) {
+      Alert.alert(
+        'Banka Hesabı Gerekli',
+        'Gelir veya gider işleyebilmek için önce "Bankalar" sekmesinden en az bir banka hesabı eklemelisiniz.'
+      );
+      return;
+    }
+    formuSifirla();
+    setModalType('islem');
+    setIslemTuru(tur);
+    setSeciliBankaId(bankalarListesi[0].id);
+    setModalVisible(true);
+  };
 
   // Ekleme veya Güncelleme İşlemi
   const kaydetVeyaGuncelle = () => {
     if (!input1.trim()) {
-      Alert.alert('Eksik Bilgi', 'Lütfen isim/başlık alanını doldurunuz.');
+      Alert.alert('Eksik Bilgi', 'Lütfen açıklama/başlık alanını doldurunuz.');
+      return;
+    }
+
+    // GELİR / GİDER İŞLEMİ KAYDI VE BANKA BAKİYESİ GÜNCELLEME
+    if (modalType === 'islem') {
+      const tutarSayi = sayiCoz(input2);
+      if (tutarSayi <= 0) {
+        Alert.alert('Hatalı Tutar', 'Lütfen geçerli bir tutar giriniz.');
+        return;
+      }
+      const hedefBanka = bankalarListesi.find((b) => b.id === seciliBankaId);
+      if (!hedefBanka) {
+        Alert.alert('Banka Seçilmedi', 'Lütfen işlemin yapılacağı bankayı seçiniz.');
+        return;
+      }
+
+      // Banka bakiyesini güncelle
+      const guncelBankalar = bankalarListesi.map((b) => {
+        if (b.id === seciliBankaId) {
+          const yeniBakiye =
+            islemTuru === 'gelir'
+              ? (Number(b.bakiye) || 0) + tutarSayi
+              : (Number(b.bakiye) || 0) - tutarSayi;
+          return { ...b, bakiye: yeniBakiye };
+        }
+        return b;
+      });
+      setBankalarListesi(guncelBankalar);
+      veriKaydet('@patron_bankalar_v3', guncelBankalar);
+
+      // İşlem geçmişine ekle
+      const bugun = new Date();
+      const tarihMetni = `${bugun.getDate()}.${bugun.getMonth() + 1}.${bugun.getFullYear()}`;
+      const yeniIslem = {
+        id: Date.now().toString(),
+        tur: islemTuru,
+        aciklama: input1,
+        tutar: tutarSayi,
+        bankaId: hedefBanka.id,
+        bankaAdi: hedefBanka.isim,
+        tarih: tarihMetni,
+      };
+      const yeniIslemListesi = [yeniIslem, ...islemlerListesi];
+      setIslemlerListesi(yeniIslemListesi);
+      veriKaydet('@patron_islemler_v3', yeniIslemListesi);
+
+      formuSifirla();
       return;
     }
 
@@ -133,7 +204,7 @@ export default function App() {
             : x
         );
         setKredilerListesi(yeni);
-        veriKaydet('@patron_krediler_v2', yeni);
+        veriKaydet('@patron_krediler_v3', yeni);
       } else if (modalType === 'banka') {
         const yeni = bankalarListesi.map((x) =>
           x.id === duzenleId
@@ -141,13 +212,13 @@ export default function App() {
             : x
         );
         setBankalarListesi(yeni);
-        veriKaydet('@patron_bankalar_v2', yeni);
+        veriKaydet('@patron_bankalar_v3', yeni);
       } else if (modalType === 'alacakli') {
         const yeni = alacaklilarListesi.map((x) =>
           x.id === duzenleId ? { ...x, isim: input1, tutar: sayiCoz(input2) } : x
         );
         setAlacaklilarListesi(yeni);
-        veriKaydet('@patron_alacaklilar_v2', yeni);
+        veriKaydet('@patron_alacaklilar_v3', yeni);
       } else if (modalType === 'mulk') {
         const yeni = mulklerListesi.map((x) =>
           x.id === duzenleId
@@ -155,7 +226,7 @@ export default function App() {
             : x
         );
         setMulklerListesi(yeni);
-        veriKaydet('@patron_mulkler_v2', yeni);
+        veriKaydet('@patron_mulkler_v3', yeni);
       } else if (modalType === 'talep') {
         const yeni = taleplerListesi.map((x) =>
           x.id === duzenleId
@@ -163,7 +234,7 @@ export default function App() {
             : x
         );
         setTaleplerListesi(yeni);
-        veriKaydet('@patron_talepler_v2', yeni);
+        veriKaydet('@patron_talepler_v3', yeni);
       }
     } else {
       const id = Date.now().toString();
@@ -180,18 +251,18 @@ export default function App() {
           },
         ];
         setKredilerListesi(yeni);
-        veriKaydet('@patron_krediler_v2', yeni);
+        veriKaydet('@patron_krediler_v3', yeni);
       } else if (modalType === 'banka') {
         const yeni = [
           ...bankalarListesi,
           { id, isim: input1, bakiye: sayiCoz(input2), kmh: sayiCoz(input3) },
         ];
         setBankalarListesi(yeni);
-        veriKaydet('@patron_bankalar_v2', yeni);
+        veriKaydet('@patron_bankalar_v3', yeni);
       } else if (modalType === 'alacakli') {
         const yeni = [...alacaklilarListesi, { id, isim: input1, tutar: sayiCoz(input2) }];
         setAlacaklilarListesi(yeni);
-        veriKaydet('@patron_alacaklilar_v2', yeni);
+        veriKaydet('@patron_alacaklilar_v3', yeni);
       } else if (modalType === 'mulk') {
         const yeni = [
           ...mulklerListesi,
@@ -204,7 +275,7 @@ export default function App() {
           },
         ];
         setMulklerListesi(yeni);
-        veriKaydet('@patron_mulkler_v2', yeni);
+        veriKaydet('@patron_mulkler_v3', yeni);
       } else if (modalType === 'talep') {
         const yeni = [
           ...taleplerListesi,
@@ -218,7 +289,7 @@ export default function App() {
           },
         ];
         setTaleplerListesi(yeni);
-        veriKaydet('@patron_talepler_v2', yeni);
+        veriKaydet('@patron_talepler_v3', yeni);
       }
     }
 
@@ -268,27 +339,47 @@ export default function App() {
     if (type === 'kredi') {
       const yeni = kredilerListesi.filter((x) => x.id !== id);
       setKredilerListesi(yeni);
-      veriKaydet('@patron_krediler_v2', yeni);
+      veriKaydet('@patron_krediler_v3', yeni);
     } else if (type === 'banka') {
       const yeni = bankalarListesi.filter((x) => x.id !== id);
       setBankalarListesi(yeni);
-      veriKaydet('@patron_bankalar_v2', yeni);
+      veriKaydet('@patron_bankalar_v3', yeni);
     } else if (type === 'alacakli') {
       const yeni = alacaklilarListesi.filter((x) => x.id !== id);
       setAlacaklilarListesi(yeni);
-      veriKaydet('@patron_alacaklilar_v2', yeni);
+      veriKaydet('@patron_alacaklilar_v3', yeni);
+    } else if (type === 'islem') {
+      // İşlem silinirken banka bakiyesini geri düzelt
+      const silinecek = islemlerListesi.find((x) => x.id === id);
+      if (silinecek) {
+        const guncelBankalar = bankalarListesi.map((b) => {
+          if (b.id === silinecek.bankaId) {
+            const duzeltilmis =
+              silinecek.tur === 'gelir'
+                ? (Number(b.bakiye) || 0) - silinecek.tutar
+                : (Number(b.bakiye) || 0) + silinecek.tutar;
+            return { ...b, bakiye: duzeltilmis };
+          }
+          return b;
+        });
+        setBankalarListesi(guncelBankalar);
+        veriKaydet('@patron_bankalar_v3', guncelBankalar);
+      }
+      const yeni = islemlerListesi.filter((x) => x.id !== id);
+      setIslemlerListesi(yeni);
+      veriKaydet('@patron_islemler_v3', yeni);
     } else if (type === 'mulk') {
       const yeni = mulklerListesi.filter((x) => x.id !== id);
       setMulklerListesi(yeni);
-      veriKaydet('@patron_mulkler_v2', yeni);
+      veriKaydet('@patron_mulkler_v3', yeni);
     } else if (type === 'talep') {
       const yeni = taleplerListesi.filter((x) => x.id !== id);
       setTaleplerListesi(yeni);
-      veriKaydet('@patron_talepler_v2', yeni);
+      veriKaydet('@patron_talepler_v3', yeni);
     }
   };
 
-  // Grafik Nokta Yükseklik Hesaplama (Dinamik)
+  // Grafik Nokta Yükseklik Hesaplama
   const maksimumDeger = Math.max(Math.abs(potansiyelDurum), Math.abs(netMevcutDurum), 10000);
   const mevcutYuzde = Math.min(Math.max((netMevcutDurum / maksimumDeger) * 35 + 45, 10), 80);
   const potansiyelYuzde = Math.min(Math.max((potansiyelDurum / maksimumDeger) * 35 + 45, 5), 75);
@@ -383,9 +474,26 @@ export default function App() {
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>Hızlı İşlemler</Text>
+            {/* HIZLI GELİR / GİDER BUTONLARI */}
+            <Text style={styles.sectionTitle}>Hızlı Kasa İşlemi</Text>
+            <View style={styles.row}>
+              <TouchableOpacity
+                style={[styles.quickActionHalfBtn, { backgroundColor: '#0f381c', borderColor: '#2ecc71' }]}
+                onPress={() => islemModaliniAc('gelir')}
+              >
+                <Text style={{ color: '#2ecc71', fontWeight: 'bold', fontSize: 13 }}>+ Gelir İşle (Komisyon)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionHalfBtn, { backgroundColor: '#3b1212', borderColor: '#ff4d4d' }]}
+                onPress={() => islemModaliniAc('gider')}
+              >
+                <Text style={{ color: '#ff4d4d', fontWeight: 'bold', fontSize: 13 }}>- Gider İşle (Masraf)</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.sectionTitle}>Yönetim Menüleri</Text>
             <TouchableOpacity style={styles.primaryButton} onPress={() => setActiveTab('finans')}>
-              <Text style={styles.primaryButtonText}>💳 Finans, Alacaklılar &amp; Kredi Yönetimi</Text>
+              <Text style={styles.primaryButtonText}>💳 Finans, Bankalar, Kredi &amp; Hareketler</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setActiveTab('portfoy')}>
               <Text style={styles.secondaryButtonText}>🏢 Gayrimenkul Portföy &amp; Talep Listesi</Text>
@@ -400,59 +508,72 @@ export default function App() {
         {activeTab === 'finans' && (
           <View>
             <View style={styles.rowBetween}>
-              <Text style={styles.sectionTitle}>Finans &amp; Alacaklılar</Text>
-              <TouchableOpacity
-                style={styles.miniButton}
-                onPress={() => {
-                  formuSifirla();
-                  if (finansSubTab === 'bankalar') setModalType('banka');
-                  else if (finansSubTab === 'alacaklilar') setModalType('alacakli');
-                  else setModalType('kredi');
-                  setModalVisible(true);
-                }}
-              >
-                <Text style={styles.miniButtonText}>
-                  {finansSubTab === 'bankalar'
-                    ? '+ Banka Ekle'
-                    : finansSubTab === 'alacaklilar'
-                    ? '+ Alacaklı Ekle'
-                    : '+ Kredi Ekle'}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.sectionTitle}>Finans &amp; Kasa</Text>
+              <View style={{ flexDirection: 'row' }}>
+                <TouchableOpacity
+                  style={[styles.miniButton, { backgroundColor: '#1b4d2b', marginRight: 6 }]}
+                  onPress={() => islemModaliniAc('gelir')}
+                >
+                  <Text style={styles.miniButtonText}>+ Gelir / Gider</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.miniButton}
+                  onPress={() => {
+                    formuSifirla();
+                    if (finansSubTab === 'bankalar') setModalType('banka');
+                    else if (finansSubTab === 'alacaklilar') setModalType('alacakli');
+                    else setModalType('kredi');
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.miniButtonText}>
+                    {finansSubTab === 'bankalar'
+                      ? '+ Banka'
+                      : finansSubTab === 'alacaklilar'
+                      ? '+ Alacaklı'
+                      : '+ Kredi'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subTabContainer}>
-              {['genel', 'bankalar', 'krediler', 'alacaklilar'].map((tab) => (
+              {[
+                { key: 'genel', label: 'GENEL' },
+                { key: 'islemler', label: 'GELİR / GİDER' },
+                { key: 'bankalar', label: 'BANKALAR' },
+                { key: 'krediler', label: 'KREDİLER' },
+                { key: 'alacaklilar', label: 'ALACAKLILAR' },
+              ].map((tab) => (
                 <TouchableOpacity
-                  key={tab}
-                  style={[styles.subTabButton, finansSubTab === tab && styles.subTabActive]}
-                  onPress={() => setFinansSubTab(tab)}
+                  key={tab.key}
+                  style={[styles.subTabButton, finansSubTab === tab.key && styles.subTabActive]}
+                  onPress={() => setFinansSubTab(tab.key)}
                 >
-                  <Text style={[styles.subTabText, finansSubTab === tab && styles.subTextActive]}>
-                    {tab.toUpperCase()}
+                  <Text style={[styles.subTabText, finansSubTab === tab.key && styles.subTextActive]}>
+                    {tab.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            {/* CANLI ÇİFT ÇİZGİLİ GRAFİK (Mevcut Net + Potansiyel Alacaklı) */}
+            {/* CANLI ÇİFT ÇİZGİLİ GRAFİK (Mevcut Nakit + Potansiyel Alacaklı) */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
-                <Text style={styles.chartTitle}>Canlı Finans &amp; Potansiyel Analizi</Text>
+                <Text style={styles.chartTitle}>Canlı Kasa &amp; Potansiyel Analizi</Text>
                 <View style={styles.profitBadge}>
                   <Text style={styles.profitBadgeText}>{paraGoster(netMevcutDurum)}</Text>
                 </View>
               </View>
               <View style={styles.legendRow}>
-                <Text style={styles.legendBlue}>● Mevcut Net: {paraGoster(netMevcutDurum)}</Text>
-                <Text style={styles.legendGold}>┄ Potansiyel (Alacak Dahil): {paraGoster(potansiyelDurum)}</Text>
+                <Text style={styles.legendBlue}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
+                <Text style={styles.legendGold}>┄ Alacak Dahil: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
               <View style={styles.graphVisualContainer}>
-                {/* Referans Taban Çizgisi */}
                 <View style={styles.graphBaseLine} />
 
-                {/* Potansiyel Alacak Çizgisi (Altın Sarısı Kesikli) */}
+                {/* Potansiyel Alacak Çizgisi */}
                 <View style={[styles.graphLineGold, { bottom: `${potansiyelYuzde}%` }]} />
                 <View style={[styles.graphDotGold, { left: '12%', bottom: `${potansiyelYuzde - 6}%` }]}>
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
@@ -464,7 +585,7 @@ export default function App() {
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
                 </View>
 
-                {/* Mevcut Net Çizgisi (Mavi) */}
+                {/* Mevcut Nakit Çizgisi */}
                 <View style={[styles.graphLineBlue, { bottom: `${mevcutYuzde}%` }]} />
                 <View style={[styles.graphDot, { left: '12%', bottom: `${mevcutYuzde - 6}%` }]}>
                   <Text style={styles.dotText}>{kisalt(netMevcutDurum)}</Text>
@@ -478,7 +599,7 @@ export default function App() {
               </View>
               <View style={styles.graphMonthsRow}>
                 <Text style={styles.monthText}>Başlangıç</Text>
-                <Text style={styles.monthText}>Güncel Durum</Text>
+                <Text style={styles.monthText}>Güncel Nakit</Text>
                 <Text style={styles.monthText}>Tahsilat Sonrası</Text>
               </View>
             </View>
@@ -488,10 +609,82 @@ export default function App() {
               <Text style={styles.boxValueWhite}>{paraGoster(kullanilabilirNakitGucu)}</Text>
             </View>
 
-            {/* KREDİLER */}
+            {/* GELİR / GİDER HAREKETLERİ */}
+            {(finansSubTab === 'genel' || finansSubTab === 'islemler') && (
+              <View style={{ marginBottom: 15 }}>
+                <Text style={styles.sectionTitle}>Son Gelir &amp; Gider Hareketleri</Text>
+                {islemlerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz gelir veya gider işlemi girilmemiş.</Text>
+                ) : (
+                  islemlerListesi.map((isl) => (
+                    <View key={isl.id} style={styles.bankCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bankTitle}>
+                          {isl.tur === 'gelir' ? '🟢 ' : '🔴 '}
+                          {isl.aciklama}
+                        </Text>
+                        <Text style={styles.propertySub}>
+                          Banka: {isl.bankaAdi} | Tarih: {isl.tarih}
+                        </Text>
+                        <Text
+                          style={{
+                            color: isl.tur === 'gelir' ? '#00ff7f' : '#ff5555',
+                            fontWeight: 'bold',
+                            fontSize: 13,
+                          }}
+                        >
+                          {isl.tur === 'gelir' ? '+' : '-'}
+                          {paraGoster(isl.tutar)}
+                        </Text>
+                      </View>
+                      <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('islem', isl.id)}>
+                        <Text style={styles.btnTextRed}>Geri Al / Sil</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* BANKALAR */}
+            {(finansSubTab === 'genel' || finansSubTab === 'bankalar') && (
+              <View style={{ marginBottom: 15 }}>
+                <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
+                {bankalarListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı banka hesabı yok.</Text>
+                ) : (
+                  bankalarListesi.map((b) => (
+                    <View key={b.id} style={styles.bankCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bankTitle}>{b.isim}</Text>
+                        <Text style={styles.propertySub}>
+                          Nakit: <Text style={{ color: '#00ff7f', fontWeight: 'bold' }}>{paraGoster(b.bakiye)}</Text> | KMH:{' '}
+                          <Text style={{ color: '#4da6ff', fontWeight: 'bold' }}>{paraGoster(b.kmh)}</Text>
+                        </Text>
+                      </View>
+                      <View style={styles.actionRowBtn}>
+                        <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('banka', b)}>
+                          <Text style={styles.btnTextOrange}>Düzenle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('banka', b.id)}>
+                          <Text style={styles.btnTextRed}>Sil</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* KREDİLER (Sadece Borç Takibi) */}
             {(finansSubTab === 'genel' || finansSubTab === 'krediler') && (
-              <View>
-                <Text style={styles.sectionTitle}>Aktif Krediler &amp; Ödemeler</Text>
+              <View style={{ marginBottom: 15 }}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.sectionTitle}>Aktif Krediler (Borç Takibi)</Text>
+                  <Text style={{ color: '#ff5555', fontSize: 12, fontWeight: 'bold' }}>
+                    Aylık Toplam: {paraGoster(toplamKrediBorcu)}
+                  </Text>
+                </View>
                 {kredilerListesi.length === 0 ? (
                   <Text style={styles.emptyText}>Henüz kayıtlı kredi yok.</Text>
                 ) : (
@@ -520,39 +713,9 @@ export default function App() {
               </View>
             )}
 
-            {/* BANKALAR */}
-            {(finansSubTab === 'genel' || finansSubTab === 'bankalar') && (
-              <View style={{ marginTop: 15 }}>
-                <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
-                {bankalarListesi.length === 0 ? (
-                  <Text style={styles.emptyText}>Henüz kayıtlı banka hesabı yok.</Text>
-                ) : (
-                  bankalarListesi.map((b) => (
-                    <View key={b.id} style={styles.bankCard}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.bankTitle}>{b.isim}</Text>
-                        <Text style={styles.propertySub}>
-                          Nakit: <Text style={{ color: '#00ff7f', fontWeight: 'bold' }}>{paraGoster(b.bakiye)}</Text> | KMH:{' '}
-                          <Text style={{ color: '#4da6ff', fontWeight: 'bold' }}>{paraGoster(b.kmh)}</Text>
-                        </Text>
-                      </View>
-                      <View style={styles.actionRowBtn}>
-                        <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('banka', b)}>
-                          <Text style={styles.btnTextOrange}>Düzenle</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('banka', b.id)}>
-                          <Text style={styles.btnTextRed}>Sil</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
-
             {/* ALACAKLILAR */}
             {(finansSubTab === 'genel' || finansSubTab === 'alacaklilar') && (
-              <View style={{ marginTop: 15 }}>
+              <View style={{ marginBottom: 15 }}>
                 <Text style={styles.sectionTitle}>Alacaklılar Listesi</Text>
                 {alacaklilarListesi.length === 0 ? (
                   <Text style={styles.emptyText}>Henüz kayıtlı alacak yok.</Text>
@@ -682,7 +845,79 @@ export default function App() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>{duzenleId ? 'Kaydı Düzenle' : 'Yeni Kayıt Ekle'}</Text>
+            <Text style={styles.modalTitle}>
+              {modalType === 'islem'
+                ? 'Gelir / Gider İşlemi'
+                : duzenleId
+                ? 'Kaydı Düzenle'
+                : 'Yeni Kayıt Ekle'}
+            </Text>
+
+            {/* GELİR / GİDER ÖZEL FORMU */}
+            {modalType === 'islem' && (
+              <>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      islemTuru === 'gelir' && { backgroundColor: '#1b4d2b', borderColor: '#2ecc71' },
+                    ]}
+                    onPress={() => setIslemTuru('gelir')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>+ GELİR (Giriş)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      islemTuru === 'gider' && { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+                    ]}
+                    onPress={() => setIslemTuru('gider')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>- GİDER (Çıkış)</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder={
+                    islemTuru === 'gelir'
+                      ? 'Gelir Açıklaması (Örn: Ören Daire Komisyonu)'
+                      : 'Gider Açıklaması (Örn: Ofis Kirası / Yakıt)'
+                  }
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Tutar (Örn: 45.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input2}
+                  onChangeText={(txt) => setInput2(noktaKoy(txt))}
+                />
+
+                <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 8 }}>
+                  {islemTuru === 'gelir' ? 'Hangi Bankaya Yattı?' : 'Hangi Bankadan Çıktı?'}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  {bankalarListesi.map((b) => (
+                    <TouchableOpacity
+                      key={b.id}
+                      style={[
+                        styles.bankSelectChip,
+                        seciliBankaId === b.id && { backgroundColor: '#1e3a5f', borderColor: '#4da6ff' },
+                      ]}
+                      onPress={() => setSeciliBankaId(b.id)}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                        {b.isim} ({paraGoster(b.bakiye)})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
 
             {modalType === 'kredi' && (
               <>
@@ -719,7 +954,7 @@ export default function App() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Ödeme Tarihi (Örn: 25 Kasım / Her Ayın 15'i)"
+                  placeholder="Ödeme Tarihi (Örn: Her Ayın 15'i)"
                   placeholderTextColor="#666"
                   value={input5}
                   onChangeText={setInput5}
@@ -902,6 +1137,7 @@ const styles = StyleSheet.create({
   boxValueWhite: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   boxSub: { color: '#777', fontSize: 10 },
 
+  quickActionHalfBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginHorizontal: 4, borderWidth: 1 },
   sectionTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 12, marginTop: 4 },
   primaryButton: { backgroundColor: '#800020', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
   primaryButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
@@ -910,9 +1146,9 @@ const styles = StyleSheet.create({
   statusBox: { backgroundColor: '#0d1f12', borderWidth: 1, borderColor: '#1b4d2b', borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 8, marginBottom: 20 },
   statusText: { color: '#2ecc71', fontSize: 12, fontWeight: 'bold' },
 
-  miniButton: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  miniButton: { backgroundColor: '#800020', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   miniButtonRed: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  miniButtonText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  miniButtonText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
 
   subTabContainer: { flexDirection: 'row', marginBottom: 14 },
   subTabButton: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#1a1a1a', borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#333' },
@@ -961,6 +1197,8 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContainer: { width: '100%', backgroundColor: '#1a1a1a', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#333' },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+  typeSelectBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#121212', alignItems: 'center', marginHorizontal: 4 },
+  bankSelectChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#121212', marginRight: 8 },
   input: { backgroundColor: '#121212', borderWidth: 1, borderColor: '#333', borderRadius: 8, padding: 12, color: '#fff', marginBottom: 10 },
   modalBtnRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   modalCancelBtn: { flex: 1, padding: 12, backgroundColor: '#333', borderRadius: 8, alignItems: 'center', marginRight: 6 },
