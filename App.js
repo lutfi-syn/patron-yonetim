@@ -121,6 +121,11 @@ export default function App() {
   const netMevcutDurum = toplamNakit;
   const potansiyelDurum = toplamNakit + toplamAlacak;
 
+  // Hesap kârda mı ekside mi? (Görsel tema için renk seçimi)
+  const isKarda = netMevcutDurum >= 0;
+  const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d'; // Yeşil veya Kırmızı/Vişne Çürüğü
+  const grafikZeminGlow = isKarda ? 'rgba(0, 255, 127, 0.15)' : 'rgba(255, 77, 77, 0.15)';
+
   const islemModaliniAc = (tur = 'gelir') => {
     if (bankalarListesi.length === 0) {
       Alert.alert(
@@ -568,20 +573,26 @@ export default function App() {
               ))}
             </ScrollView>
 
+            {/* YENİ: DOLGULU, BLUR/GRADYAN EFEKTLİ VE DİNAMİK RENKLİ GRAFİK */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>Canlı Kasa &amp; Potansiyel Analizi</Text>
-                <View style={styles.profitBadge}>
-                  <Text style={styles.profitBadgeText}>{paraGoster(netMevcutDurum)}</Text>
+                <View style={[styles.profitBadge, { backgroundColor: isKarda ? '#1b4d2b' : '#3b1212' }]}>
+                  <Text style={[styles.profitBadgeText, { color: grafikAnaRenk }]}>{paraGoster(netMevcutDurum)}</Text>
                 </View>
               </View>
               <View style={styles.legendRow}>
-                <Text style={styles.legendBlue}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
+                <Text style={[styles.legendBlue, { color: grafikAnaRenk }]}>● Mevcut Nakit: {paraGoster(netMevcutDurum)}</Text>
                 <Text style={styles.legendGold}>┄ Alacak Dahil: {paraGoster(potansiyelDurum)}</Text>
               </View>
 
-              <View style={styles.graphVisualContainer}>
+              <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
+                {/* Blur / Gradyan Dolgu Efekti Katmanları */}
+                <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: `${mevcutYuzde / 2}%`, height: `${mevcutYuzde}%` }]} />
+                
                 <View style={styles.graphBaseLine} />
+
+                {/* Potansiyel Alacak Çizgisi */}
                 <View style={[styles.graphLineGold, { bottom: `${potansiyelYuzde}%` }]} />
                 <View style={[styles.graphDotGold, { left: '12%', bottom: `${potansiyelYuzde - 6}%` }]}>
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
@@ -593,15 +604,16 @@ export default function App() {
                   <Text style={styles.dotTextGold}>{kisalt(potansiyelDurum)}</Text>
                 </View>
 
-                <View style={[styles.graphLineBlue, { bottom: `${mevcutYuzde}%` }]} />
-                <View style={[styles.graphDot, { left: '12%', bottom: `${mevcutYuzde - 6}%` }]}>
-                  <Text style={styles.dotText}>{kisalt(netMevcutDurum)}</Text>
+                {/* Mevcut Nakit Çizgisi (Dinamik Renkli: Yeşil / Kırmızı) */}
+                <View style={[styles.graphLineDynamic, { bottom: `${mevcutYuzde}%`, backgroundColor: grafikAnaRenk, shadowColor: grafikAnaRenk }]} />
+                <View style={[styles.graphDotDynamic, { left: '12%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
+                  <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
                 </View>
-                <View style={[styles.graphDot, { left: '48%', bottom: `${mevcutYuzde - 6}%` }]}>
-                  <Text style={styles.dotText}>{kisalt(netMevcutDurum)}</Text>
+                <View style={[styles.graphDotDynamic, { left: '48%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
+                  <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
                 </View>
-                <View style={[styles.graphDot, { left: '82%', bottom: `${mevcutYuzde - 6}%` }]}>
-                  <Text style={styles.dotText}>{kisalt(netMevcutDurum)}</Text>
+                <View style={[styles.graphDotDynamic, { left: '82%', bottom: `${mevcutYuzde - 6}%`, borderColor: grafikAnaRenk, backgroundColor: isKarda ? '#0d2b18' : '#3b1212' }]}>
+                  <Text style={[styles.dotTextDynamic, { color: grafikAnaRenk }]}>{kisalt(netMevcutDurum)}</Text>
                 </View>
               </View>
               <View style={styles.graphMonthsRow}>
@@ -1209,19 +1221,22 @@ const styles = StyleSheet.create({
   chartCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#262626' },
   chartTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   legendRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 },
-  legendBlue: { color: '#4da6ff', fontSize: 10, fontWeight: 'bold' },
+  legendBlue: { fontSize: 10, fontWeight: 'bold' },
   legendGold: { color: '#ffd700', fontSize: 10, fontWeight: 'bold' },
-  profitBadge: { backgroundColor: '#1b4d2b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  profitBadgeText: { color: '#00ff7f', fontSize: 11, fontWeight: 'bold' },
-  graphVisualContainer: { height: 95, position: 'relative', justifyContent: 'center', marginVertical: 5, backgroundColor: '#141414', borderRadius: 8 },
+  profitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
+  
+  // Blur / Gradyan Dolgulu Grafik Stilleri
+  graphVisualContainer: { height: 110, position: 'relative', justifyContent: 'center', marginVertical: 5, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
+  blurGradientOverlay: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
   graphBaseLine: { position: 'absolute', bottom: '45%', left: 0, right: 0, height: 1, backgroundColor: '#2a2a2a' },
-  graphLineBlue: { position: 'absolute', left: '10%', right: '10%', height: 2.5, backgroundColor: '#4da6ff' },
+  graphLineDynamic: { position: 'absolute', left: '10%', right: '10%', height: 3, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 6, elevation: 5 },
   graphLineGold: { position: 'absolute', left: '10%', right: '10%', height: 2, borderWidth: 1, borderColor: '#ffd700', borderStyle: 'dashed' },
-  graphDot: { position: 'absolute', paddingHorizontal: 5, height: 16, backgroundColor: '#1e3a5f', borderRadius: 4, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#4da6ff' },
+  graphDotDynamic: { position: 'absolute', paddingHorizontal: 6, height: 18, borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
   graphDotGold: { position: 'absolute', paddingHorizontal: 5, height: 16, backgroundColor: '#332b00', borderRadius: 4, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#ffd700' },
-  dotText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
+  dotTextDynamic: { fontSize: 9, fontWeight: 'bold' },
   dotTextGold: { color: '#ffd700', fontSize: 9, fontWeight: 'bold' },
-  graphMonthsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10, marginTop: 6 },
+  graphMonthsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10, marginTop: 8 },
   monthText: { color: '#777', fontSize: 10 },
 
   bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
