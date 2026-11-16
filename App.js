@@ -26,8 +26,9 @@ export default function App() {
   const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep', 'islem'
   const [duzenleId, setDuzenleId] = useState(null);
 
-  // Gelir / Gider Özel State'leri
+  // Gelir / Gider ve Talep Özel State'leri
   const [islemTuru, setIslemTuru] = useState('gelir'); // 'gelir' veya 'gider'
+  const [talepKategori, setTalepKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
   const [seciliBankaId, setSeciliBankaId] = useState('');
 
   // Form State'leri
@@ -136,7 +137,7 @@ export default function App() {
 
   const kaydetVeyaGuncelle = () => {
     if (!input1.trim()) {
-      Alert.alert('Eksik Bilgi', 'Lütfen açıklama/başlık alanını doldurunuz.');
+      Alert.alert('Eksik Bilgi', 'Lütfen temel alanı doldurunuz.');
       return;
     }
 
@@ -225,7 +226,14 @@ export default function App() {
       } else if (modalType === 'talep') {
         const yeni = taleplerListesi.map((x) =>
           x.id === duzenleId
-            ? { ...x, musteri: input1, bolge: input2 || 'Genel', butce: sayiCoz(input3), detay: `${input2 || 'Merkez'} - Talep` }
+            ? {
+                ...x,
+                musteri: input1,
+                bolge: input2 || 'Genel',
+                islemTipi: talepKategori,
+                butce: sayiCoz(input3),
+                detay: `${input2 || 'Merkez'} - ${talepKategori} Talep`,
+              }
             : x
         );
         setTaleplerListesi(yeni);
@@ -278,9 +286,10 @@ export default function App() {
             id,
             musteri: input1,
             bolge: input2 || 'Genel',
+            islemTipi: talepKategori,
             tip: 'Konut',
             butce: sayiCoz(input3),
-            detay: `${input2 || 'Merkez'} - Alıcı Talebi`,
+            detay: `${input2 || 'Merkez'} - ${talepKategori} Alıcı Talebi`,
           },
         ];
         setTaleplerListesi(yeni);
@@ -297,6 +306,7 @@ export default function App() {
     setInput3('');
     setInput4('');
     setInput5('');
+    setTalepKategori('Satılık');
     setDuzenleId(null);
     setModalVisible(false);
   };
@@ -325,6 +335,7 @@ export default function App() {
     } else if (type === 'talep') {
       setInput1(item.musteri);
       setInput2(item.bolge);
+      setTalepKategori(item.islemTipi || 'Satılık');
       setInput3(noktaKoy(item.butce));
     }
     setModalVisible(true);
@@ -436,7 +447,7 @@ export default function App() {
             ) : (
               <View style={styles.emptyCardNotice}>
                 <Text style={styles.emptyNoticeText}>
-                  Aktif eşleşme yok. Mülk ve talep ekledikçe eşleşmeler burada görünür.
+                  Aktif eşleşme yok. Mülk and talep ekledikçe eşleşmeler burada görünür.
                 </Text>
               </View>
             )}
@@ -793,8 +804,8 @@ export default function App() {
                   taleplerListesi.map((t) => (
                     <View key={t.id} style={styles.propertyCard}>
                       <View style={styles.rowBetween}>
-                        <View style={styles.badgeRed}>
-                          <Text style={styles.badgeText}>Talep</Text>
+                        <View style={t.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
+                          <Text style={styles.badgeText}>{t.islemTipi || 'Satılık'} Talep</Text>
                         </View>
                         <View style={styles.actionRowBtn}>
                           <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('talep', t)}>
@@ -1024,6 +1035,27 @@ export default function App() {
 
             {modalType === 'talep' && (
               <>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      talepKategori === 'Satılık' && { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+                    ]}
+                    onPress={() => setTalepKategori('Satılık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>SATILIK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      talepKategori === 'Kiralık' && { backgroundColor: '#1b4d2b', borderColor: '#2ecc71' },
+                    ]}
+                    onPress={() => setTalepKategori('Kiralık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>KİRALIK</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <TextInput
                   style={styles.input}
                   placeholder="Müşteri Adı (Örn: Ali Bey)"
@@ -1166,6 +1198,7 @@ const styles = StyleSheet.create({
   propertyCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 12 },
   badgeBlue: { backgroundColor: '#1e3a5f', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   badgeRed: { backgroundColor: '#800020', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
+  badgeGreen: { backgroundColor: '#1b4d2b', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   propertyTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   propertySub: { color: '#aaa', fontSize: 12, marginBottom: 4 },
