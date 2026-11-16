@@ -54,12 +54,15 @@ export default function App() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Garanti Binlik Ayraç Formatlayıcı
+  // Eksi İşaretini ve Binlik Ayraçları Destekleyen Formatlayıcı
   const noktaKoy = (val) => {
     if (val === null || val === undefined || val === '') return '';
-    const temiz = val.toString().replace(/\D/g, '');
-    if (!temiz) return '';
-    return temiz.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const strVal = val.toString();
+    const isNegative = strVal.startsWith('-');
+    const temiz = strVal.replace(/\D/g, '');
+    if (!temiz) return isNegative ? '-' : '';
+    const formatli = temiz.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return isNegative ? '-' + formatli : formatli;
   };
 
   const paraGoster = (sayi) => {
@@ -71,7 +74,10 @@ export default function App() {
 
   const sayiCoz = (str) => {
     if (!str) return 0;
-    return Number(str.toString().replace(/\D/g, '')) || 0;
+    const strVal = str.toString();
+    const isNegative = strVal.startsWith('-');
+    const temiz = Number(strVal.replace(/\D/g, '')) || 0;
+    return isNegative ? -temiz : temiz;
   };
 
   useEffect(() => {
@@ -194,7 +200,7 @@ export default function App() {
 
     if (modalType === 'islem') {
       const tutarSayi = sayiCoz(input2);
-      if (tutarSayi <= 0) {
+      if (tutarSayi === 0) {
         Alert.alert('Hatalı Tutar', 'Lütfen geçerli bir tutar giriniz.');
         return;
       }
@@ -208,8 +214,8 @@ export default function App() {
         if (b.id === seciliBankaId) {
           const yeniBakiye =
             islemTuru === 'gelir'
-              ? (Number(b.bakiye) || 0) + tutarSayi
-              : (Number(b.bakiye) || 0) - tutarSayi;
+              ? (Number(b.bakiye) || 0) + Math.abs(tutarSayi)
+              : (Number(b.bakiye) || 0) - Math.abs(tutarSayi);
           return { ...b, bakiye: yeniBakiye };
         }
         return b;
@@ -224,7 +230,7 @@ export default function App() {
         id: Date.now().toString(),
         tur: islemTuru,
         aciklama: input1,
-        tutar: tutarSayi,
+        tutar: Math.abs(tutarSayi),
         bankaId: hedefBanka.id,
         bankaAdi: hedefBanka.isim,
         tarih: tarihMetni,
@@ -643,23 +649,17 @@ export default function App() {
 
               {/* SOL MEBLAĞ SKALASI VE GRAFİK ALANI */}
               <View style={styles.chartBodyWrapper}>
-                {/* Sol Yanda Meblağ Skalası (Üst, 0 Noktası, Alt) */}
                 <View style={styles.yAxisLabels}>
                   <Text style={styles.axisText}>{kisalt(Math.max(netMevcutDurum * 1.5, 100000))}</Text>
                   <Text style={styles.axisText}>0 ₺</Text>
                   <Text style={styles.axisText}>-{kisalt(Math.abs(netMevcutDurum * 0.5) || 50000)}</Text>
                 </View>
 
-                {/* Grafik Görsel Konteyneri */}
                 <View style={[styles.graphVisualContainer, { backgroundColor: '#131815' }]}>
-                  {/* Arka plan blur/gradyan dolgu efekti */}
                   <View style={[styles.blurGradientOverlay, { backgroundColor: grafikZeminGlow, bottom: '25%', height: '55%' }]} />
-                  
-                  {/* 0 Noktası Yatay Çizgisi */}
                   <View style={styles.graphBaseLine} />
                   <View style={styles.zeroLineLabel}><Text style={styles.zeroText}>0</Text></View>
 
-                  {/* 12 Ayrı Ay Noktası */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
                       const yuzdeSol = `${(idx / 11) * 82 + 9}%`;
@@ -727,7 +727,7 @@ export default function App() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.bankTitle}>{b.isim}</Text>
                         <Text style={styles.propertySub}>
-                          Nakit: <Text style={{ color: '#00ff7f', fontWeight: 'bold' }}>{paraGoster(b.bakiye)}</Text> | KMH:{' '}
+                          Nakit: <Text style={{ color: Number(b.bakiye) >= 0 ? '#00ff7f' : '#ff4d4d', fontWeight: 'bold' }}>{paraGoster(b.bakiye)}</Text> | KMH:{' '}
                           <Text style={{ color: '#4da6ff', fontWeight: 'bold' }}>{paraGoster(b.kmh)}</Text>
                         </Text>
                       </View>
@@ -1050,9 +1050,9 @@ export default function App() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Mevcut Nakit Bakiye (Örn: 150.000)"
+                  placeholder="Mevcut Nakit Bakiye (Örn: -15.000 veya 150.000)"
                   placeholderTextColor="#666"
-                  keyboardType="numeric"
+                  keyboardType="default"
                   value={input2}
                   onChangeText={(txt) => setInput2(noktaKoy(txt))}
                 />
@@ -1292,7 +1292,6 @@ const styles = StyleSheet.create({
   profitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
   
-  // Sol Meblağ Skalası ve Grafik Yerleşimi
   chartBodyWrapper: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   yAxisLabels: { width: 52, justifyContent: 'space-between', height: 110, paddingVertical: 6, paddingRight: 4, alignItems: 'flex-end' },
   axisText: { color: '#666', fontSize: 9, fontWeight: '600' },
