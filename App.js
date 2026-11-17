@@ -21,6 +21,10 @@ export default function App() {
   const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'islemler', 'bankalar', 'krediler', 'alacaklilar'
   const [portfoySubTab, setPortfoySubTab] = useState('mulkler'); // 'mulkler', 'talepler'
 
+  // Portföy Gelişmiş Filtre State'leri
+  const [secilenIslemFiltresi, setSecilenIslemFiltresi] = useState('Tümü'); // 'Tümü', 'Satılık', 'Kiralık'
+  const [secilenTipFiltresi, setSecilenTipFiltresi] = useState('Tümü'); // 'Tümü', 'Arsa', 'Zeytinlik', 'Tarla', 'Villa', 'Daire', 'Kat Karşılığı', 'İmarsiz Arsa'
+
   // Modal State'leri
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep', 'islem'
@@ -32,7 +36,7 @@ export default function App() {
   const [talepKategori, setTalepKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
   const [seciliBankaId, setSeciliBankaId] = useState('');
 
-  // Grafik Tooltip Seçili Ay State'i (Mevcut ay Kasım = index 10)
+  // Grafik Tooltip Seçili Ay State'i
   const [seciliAyIndex, setSeciliAyIndex] = useState(new Date().getMonth());
 
   // Form State'leri
@@ -218,22 +222,21 @@ export default function App() {
 
   const aktifEslesme = gecerliEslesmeBul();
 
-  // 12 AYLIK VERİ: Başladığımız aydan (Kasım = index 10) itibaren ilerleyen dinamik yapı
+  // 12 AYLIK VERİ
   const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-  const baslangicAyiIndex = 10; // Kasım ayı itibarıyla başlangıç
+  const baslangicAyiIndex = 10; // Kasım
 
   const aylikNakitVerileri = aylarListesi.map((_, index) => {
-    if (index < baslangicAyiIndex) return 0; // Başlangıç öncesi sıfır çizgisinde temiz
-    if (index === baslangicAyiIndex) return netMevcutDurum; // Mevcut ayın gerçek nakdi
-    return yilSonuNetBilanco; // Gelecek ay (Aralık) tahmini net bilanço
+    if (index < baslangicAyiIndex) return 0;
+    if (index === baslangicAyiIndex) return netMevcutDurum;
+    return yilSonuNetBilanco;
   });
 
   const aylikPotansiyelVerileri = aylarListesi.map((_, index) => {
-    if (index < baslangicAyiIndex) return 0; // Başlangıç öncesi sıfır
-    return potansiyelDurum; // Mevcut ve gelecek aylarda potansiyel durum
+    if (index < baslangicAyiIndex) return 0;
+    return potansiyelDurum;
   });
 
-  // Dinamik Y Ekseni Skalası (En yüksek değere göre otomatik ölçeklenir)
   const maxSkala = Math.max(
     Math.abs(potansiyelDurum),
     Math.abs(netMevcutDurum),
@@ -356,7 +359,7 @@ export default function App() {
             ? {
                 ...x,
                 baslik: input1,
-                tip: input2 || 'Konut',
+                tip: input2 || 'Daire',
                 islemTipi: mulkKategori,
                 fiyat: sayiCoz(input3),
                 detay: input4 || 'Özel mülk',
@@ -373,9 +376,9 @@ export default function App() {
                 musteri: input1,
                 bolge: input2 || 'Genel',
                 islemTipi: talepKategori,
-                tip: input4 || 'Konut',
+                tip: input4 || 'Daire',
                 butce: sayiCoz(input3),
-                detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Konut'} Talebi`,
+                detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Daire'} Talebi`,
               }
             : x
         );
@@ -415,7 +418,7 @@ export default function App() {
           {
             id,
             baslik: input1,
-            tip: input2 || 'Konut',
+            tip: input2 || 'Daire',
             islemTipi: mulkKategori,
             fiyat: sayiCoz(input3),
             detay: input4 || 'Özel portföy',
@@ -431,9 +434,9 @@ export default function App() {
             musteri: input1,
             bolge: input2 || 'Genel',
             islemTipi: talepKategori,
-            tip: input4 || 'Konut',
+            tip: input4 || 'Daire',
             butce: sayiCoz(input3),
-            detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Konut'} Talebi`,
+            detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Daire'} Talebi`,
           },
         ];
         setTaleplerListesi(yeni);
@@ -484,7 +487,7 @@ export default function App() {
       setInput2(item.bolge);
       setTalepKategori(item.islemTipi || 'Satılık');
       setInput3(noktaKoy(item.butce));
-      setInput4(item.tip || 'Konut');
+      setInput4(item.tip || 'Daire');
     }
     setModalVisible(true);
   };
@@ -531,6 +534,15 @@ export default function App() {
       veriKaydet('@patron_talepler_v3', yeni);
     }
   };
+
+  // Portföy Filtreleme Mantığı
+  const filtrelenmisMulkler = mulklerListesi.filter((m) => {
+    const islemUyum =
+      secilenIslemFiltresi === 'Tümü' || (m.islemTipi || 'Satılık') === secilenIslemFiltresi;
+    const tipUyum =
+      secilenTipFiltresi === 'Tümü' || (m.tip || 'Daire').trim().toLowerCase() === secilenTipFiltresi.trim().toLowerCase();
+    return islemUyum && tipUyum;
+  });
 
   if (isLoading) {
     return (
@@ -582,7 +594,7 @@ export default function App() {
               <View style={styles.alertCard}>
                 <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
                 <Text style={styles.alertDesc}>
-                  • {aktifEslesme.talep.musteri} ({aktifEslesme.talep.bolge} - Bütçe: {paraGoster(aktifEslesme.talep.butce)}) {aktifEslesme.talep.islemTipi} {aktifEslesme.talep.tip || 'Konut'} talebi, "{aktifEslesme.mulk.baslik}" portföyünüzle 1'e 1 eşleşti!
+                  • {aktifEslesme.talep.musteri} ({aktifEslesme.talep.bolge} - Bütçe: {paraGoster(aktifEslesme.talep.butce)}) {aktifEslesme.talep.islemTipi} {aktifEslesme.talep.tip || 'Daire'} talebi, "{aktifEslesme.mulk.baslik}" portföyünüzle 1'e 1 eşleşti!
                 </Text>
               </View>
             ) : (
@@ -700,7 +712,6 @@ export default function App() {
               ))}
             </ScrollView>
 
-            {/* İSTEDİĞİN TAM ORTADAN 0 REFERANSLI ÇUBUK + ALTIN SARISI KESİK ÇİZGİ GRAFİĞİ */}
             <View style={styles.chartCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
@@ -716,7 +727,6 @@ export default function App() {
                 </Text>
               </View>
 
-              {/* Lejant (Açıklama) */}
               <View style={styles.legendRow}>
                 <Text style={styles.legendNakit}>
                   ▮ Nakit: {paraGoster(netMevcutDurum)}
@@ -726,7 +736,6 @@ export default function App() {
                 </Text>
               </View>
 
-              {/* GRAFİK ALANI: TAM ORTA 0 NOKTASI */}
               <View style={styles.chartBodyWrapper}>
                 <View style={styles.yAxisLabels}>
                   <Text style={styles.axisText}>{kisalt(maxSkala)}</Text>
@@ -737,21 +746,17 @@ export default function App() {
                 </View>
 
                 <View style={styles.graphVisualContainer}>
-                  {/* Tam Ortadan Geçen 0 ₺ Referans Çizgisi */}
                   <View style={styles.graphZeroLine} />
 
-                  {/* 12 Aylık Sütunlar ve Altın Sarısı Potansiyel Kesik Çizgi */}
                   <View style={styles.ayNoktalariKapsayici}>
                     {aylarListesi.map((ayAdi, idx) => {
                       const nakitDeger = aylikNakitVerileri[idx];
                       const potDeger = aylikPotansiyelVerileri[idx];
                       const isSecili = seciliAyIndex === idx;
                       
-                      // Nakit çubuk yüksekliği (Maksimum yarım ekran = %46)
                       const nakitYuzde = Math.min((Math.abs(nakitDeger) / maxSkala) * 46, 46);
                       const isNakitPozitif = nakitDeger >= 0;
 
-                      // Potansiyel nokta yüksekliği (0 çizgisinden itibaren offset)
                       const potYuzde = Math.min((Math.abs(potDeger) / maxSkala) * 46, 46);
                       const isPotPozitif = potDeger >= 0;
 
@@ -761,7 +766,6 @@ export default function App() {
                           style={[styles.ayDokunmaNoktasi, isSecili && styles.aySeciliArka]}
                           onPress={() => setSeciliAyIndex(idx)}
                         >
-                          {/* Nakit Çubuğu: Pozitifse 0'dan YUKARI Yeşil, Negatifse 0'dan AŞAĞI Kırmızı */}
                           {nakitDeger !== 0 && (
                             <View
                               style={[
@@ -777,7 +781,6 @@ export default function App() {
                             />
                           )}
 
-                          {/* Potansiyel Durum: Altın Sarısı Kesik Çizgi Segmenti ve Parlak Nokta */}
                           {idx >= baslangicAyiIndex && (
                             <View
                               style={[
@@ -792,7 +795,6 @@ export default function App() {
                             </View>
                           )}
 
-                          {/* Alt Ay Etiketi */}
                           <Text style={[styles.ayEtiketiYazi, isSecili && { color: '#ffd700', fontWeight: '900' }]}>
                             {ayAdi}
                           </Text>
@@ -801,7 +803,6 @@ export default function App() {
                     })}
                   </View>
 
-                  {/* Tıklanan Aya Ait Koyu Tema Detay Baloncuğu */}
                   <View style={styles.popupBalonKutusu}>
                     <Text style={styles.popupBaslik}>
                       Potansiyel: {paraGoster(aylikPotansiyelVerileri[seciliAyIndex])}
@@ -991,17 +992,68 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
+            {/* PORTFÖY FİLTRELEME BÖLÜMÜ (Satılık/Kiralık ve Gayrimenkul Tipleri) */}
+            {portfoySubTab === 'mulkler' && (
+              <View style={styles.filtreKapsayici}>
+                {/* 1. Satılık / Kiralık Ayrımı */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreSatir}>
+                  {['Tümü', 'Satılık', 'Kiralık'].map((islemTip) => (
+                    <TouchableOpacity
+                      key={islemTip}
+                      style={[
+                        styles.filtreKucukChip,
+                        secilenIslemFiltresi === islemTip && styles.filtreAktifChip,
+                      ]}
+                      onPress={() => setSecilenIslemFiltresi(islemTip)}
+                    >
+                      <Text
+                        style={[
+                          styles.filtreYazi,
+                          secilenIslemFiltresi === islemTip && styles.filtreAktifYazi,
+                        ]}
+                      >
+                        {islemTip}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* 2. Gayrimenkul Tipi Filtreleri (Arsa, Zeytinlik, Tarla, Villa, Daire, Kat Karşılığı, İmarsiz Arsa) */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreSatir2}>
+                  {['Tümü', 'Daire', 'Villa', 'Arsa', 'Zeytinlik', 'Tarla', 'Kat Karşılığı', 'İmarsiz Arsa'].map((tip) => (
+                    <TouchableOpacity
+                      key={tip}
+                      style={[
+                        styles.filtreTipChip,
+                        secilenTipFiltresi === tip && styles.filtreAktifTipChip,
+                      ]}
+                      onPress={() => setSecilenTipFiltresi(tip)}
+                    >
+                      <Text
+                        style={[
+                          styles.filtreTipYazi,
+                          secilenTipFiltresi === tip && styles.filtreAktifTipYazi,
+                        ]}
+                      >
+                        {tip}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {portfoySubTab === 'mulkler' ? (
               <View>
-                {mulklerListesi.length === 0 ? (
-                  <Text style={styles.emptyText}>Henüz portföy mülk eklenmemiş.</Text>
+                {filtrelenmisMulkler.length === 0 ? (
+                  <Text style={styles.emptyText}>Seçilen kriterlere uygun portföy mülk bulunamadı.</Text>
                 ) : (
-                  mulklerListesi.map((m) => (
+                  filtrelenmisMulkler.map((m) => (
                     <View key={m.id} style={styles.propertyCard}>
                       <View style={styles.rowBetween}>
                         <View style={{ flexDirection: 'row' }}>
                           <View style={[styles.badgeBlue, { marginRight: 6 }]}>
-                            <Text style={styles.badgeText}>{m.tip}</Text>
+                            <Text style={styles.badgeText}>{m.tip || 'Daire'}</Text>
                           </View>
                           <View style={m.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
                             <Text style={styles.badgeText}>{m.islemTipi || 'Satılık'}</Text>
@@ -1032,7 +1084,7 @@ export default function App() {
                     <View key={t.id} style={styles.propertyCard}>
                       <View style={styles.rowBetween}>
                         <View style={t.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
-                          <Text style={styles.badgeText}>{t.islemTipi || 'Satılık'} {t.tip || 'Konut'} Talep</Text>
+                          <Text style={styles.badgeText}>{t.islemTipi || 'Satılık'} {t.tip || 'Daire'} Talep</Text>
                         </View>
                         <View style={styles.actionRowBtn}>
                           <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('talep', t)}>
@@ -1300,7 +1352,7 @@ export default function App() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Mülk Tipi (Konut / Daire / Villa / Zeytinlik / Tarla)"
+                  placeholder="Mülk Tipi (Daire / Villa / Arsa / Zeytinlik / Tarla / Kat Karşılığı / İmarsiz Arsa)"
                   placeholderTextColor="#666"
                   value={input2}
                   onChangeText={setInput2}
@@ -1362,7 +1414,7 @@ export default function App() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Mülk Tipi (Konut / Daire / Villa / Zeytinlik / Tarla)"
+                  placeholder="Mülk Tipi (Daire / Villa / Arsa / Zeytinlik / Tarla / vb.)"
                   placeholderTextColor="#666"
                   value={input4}
                   onChangeText={setInput4}
@@ -1471,6 +1523,19 @@ const styles = StyleSheet.create({
   portfoyTabBtn: { flex: 1, backgroundColor: '#1a1a1a', padding: 10, borderRadius: 8, alignItems: 'center', marginHorizontal: 4, borderWidth: 1, borderColor: '#333' },
   portfoyTabActive: { backgroundColor: '#800020', borderColor: '#ff4d4d' },
   portfoyTabText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
+  // Filtreleme Alanı Stilleri
+  filtreKapsayici: { backgroundColor: '#161616', padding: 10, borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: '#222' },
+  filtreSatir: { flexDirection: 'row', marginBottom: 8 },
+  filtreSatir2: { flexDirection: 'row' },
+  filtreKucukChip: { paddingHorizontal: 16, paddingVertical: 6, backgroundColor: '#222', borderRadius: 6, marginRight: 6, borderWidth: 1, borderColor: '#333' },
+  filtreAktifChip: { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+  filtreYazi: { color: '#aaa', fontSize: 11, fontWeight: 'bold' },
+  filtreAktifYazi: { color: '#fff' },
+  filtreTipChip: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#1e1e1e', borderRadius: 6, marginRight: 6, borderWidth: 1, borderColor: '#2a2a2a' },
+  filtreAktifTipChip: { backgroundColor: '#1e3a5f', borderColor: '#4da6ff' },
+  filtreTipYazi: { color: '#888', fontSize: 11, fontWeight: '600' },
+  filtreAktifTipYazi: { color: '#fff', fontWeight: 'bold' },
 
   chartCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#262626' },
   chartTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
