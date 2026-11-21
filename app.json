@@ -1,18 +1,27 @@
 {
   "expo": {
-    "name": "Patron Yönetim",
-    "slug": "patron-yonetim",
+    "name": "PATRON - TOCO Ticaret Ofisi",
+    "slug": "patron-toco",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "ios": {
-      "supportsTablet": true
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
     },
     "android": {
-      "package": "com.toco.patronyonetim"
+      "package": "com.tocoticaret.patron",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      }
     },
-    "web": {
-      "bundler": "metro"
+    "extra": {
+      "eas": {
+        "projectId": "buraya-eas-proje-id-gelecek"
+      }
     }
   }
 }
