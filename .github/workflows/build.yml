@@ -1,13 +1,15 @@
-name: Build Android APK
+name: Build Android AAB
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -15,28 +17,27 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
+          cache: npm
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      - name: Install Node modules
-        run: npm install
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build local APK via Expo prebuild & Gradle
-        run: |
-          rm -rf android
-          npx expo prebuild --platform android --no-install
-          find android/app/src/main/res/ -type f -name "*.xml" -exec sed -i '/splashscreen/d' {} +
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --non-interactive
 
-      - name: Upload APK artifact
+      - name: Build Android App Bundle (.aab)
+        working-directory: android
+        run: ./gradlew bundleRelease
+
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PatronYonetim-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: patron-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
