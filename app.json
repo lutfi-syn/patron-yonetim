@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.tocoticaret.patron",
+      "minSdkVersion": 24,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
