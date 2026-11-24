@@ -1,10 +1,11 @@
+cat << 'EOF' > app.json
 {
   "expo": {
     "name": "PATRON - TOCO Ticaret Ofisi",
     "slug": "patron-toco",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/splash-icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -33,3 +34,5 @@
     ]
   }
 }
+EOF
+node -e "JSON.parse(require('fs').readFileSync('app.json', 'utf8')); console.log('JSON OK')"
