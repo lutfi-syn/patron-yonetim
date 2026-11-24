@@ -4,29 +4,29 @@
     "slug": "patron-toco",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/splash-icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
-    android: {
-      package: "com.tocoticaret.patron",
-      minSdkVersion: 24,
-      adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#0A0A0A"
+    "android": {
+      "package": "com.tocoticaret.patron",
+      "minSdkVersion": 24,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
       }
     },
-    plugins: [
+    "plugins": [
       [
         "expo-build-properties",
         {
-          android: {
-            minSdkVersion: 24,
-            compileSdkVersion: 36,
-            targetSdkVersion: 36
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ]
