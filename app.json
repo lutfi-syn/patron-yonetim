@@ -1,17 +1,15 @@
-node -e '
-const fs = require("fs");
-const config = {
-  expo: {
-    name: "PATRON - TOCO Ticaret Ofisi",
-    slug: "patron-toco",
-    version: "1.0.0",
-    orientation: "portrait",
-    icon: "./assets/splash-icon.png",
-    userInterfaceStyle: "dark",
-    splash: {
-      image: "./assets/splash-icon.png",
-      resizeMode: "contain",
-      backgroundColor: "#0A0A0A"
+{
+  "expo": {
+    "name": "PATRON - TOCO Ticaret Ofisi",
+    "slug": "patron-toco",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
     },
     android: {
       package: "com.tocoticaret.patron",
@@ -34,8 +32,4 @@ const config = {
       ]
     ]
   }
-};
-fs.writeFileSync("app.json", JSON.stringify(config, null, 2) + "\n", "utf8");
-JSON.parse(fs.readFileSync("app.json", "utf8"));
-console.log("JSON OK");
-'head -n 3 app.json
+}
