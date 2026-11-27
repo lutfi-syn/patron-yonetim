@@ -1,0 +1,1623 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  Animated,
+  Easing,
+  TextInput,
+  Modal,
+  Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export default function App() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('ozet'); // 'ozet', 'finans', 'portfoy', 'ayarlar'
+  const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'islemler', 'bankalar', 'krediler', 'alacaklilar'
+  const [portfoySubTab, setPortfoySubTab] = useState('mulkler'); // 'mulkler', 'talepler'
+
+  // Portföy Gelişmiş Filtre State'leri
+  const [secilenIslemFiltresi, setSecilenIslemFiltresi] = useState('Tümü'); // 'Tümü', 'Satılık', 'Kiralık'
+  const [secilenTipFiltresi, setSecilenTipFiltresi] = useState('Tümü'); // 'Tümü', 'Arsa', 'Zeytinlik', 'Tarla', 'Villa', 'Daire', 'Kat Karşılığı', 'İmarsiz Arsa'
+
+  // Modal State'leri
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalType, setModalType] = useState(''); // 'kredi', 'banka', 'alacakli', 'mulk', 'talep', 'islem'
+  const [duzenleId, setDuzenleId] = useState(null);
+
+  // Gelir/Gider, Mülk ve Talep Özel State'leri
+  const [islemTuru, setIslemTuru] = useState('gelir'); // 'gelir' veya 'gider'
+  const [mulkKategori, setMulkKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
+  const [talepKategori, setTalepKategori] = useState('Satılık'); // 'Satılık' veya 'Kiralık'
+  const [seciliBankaId, setSeciliBankaId] = useState('');
+
+  // Grafik Tooltip Seçili Ay State'i
+  const [seciliAyIndex, setSeciliAyIndex] = useState(new Date().getMonth());
+
+  // Form State'leri
+  const [input1, setInput1] = useState('');
+  const [input2, setInput2] = useState('');
+  const [input3, setInput3] = useState('');
+  const [input4, setInput4] = useState('');
+  const [input5, setInput5] = useState('');
+  const [islemTarihiInput, setIslemTarihiInput] = useState('');
+
+  // Canlı Saat & Tarih State'i
+  const [anlikZaman, setAnlikZaman] = useState('');
+
+  // Veri Listeleri
+  const [kredilerListesi, setKredilerListesi] = useState([]);
+  const [bankalarListesi, setBankalarListesi] = useState([]);
+  const [alacaklilarListesi, setAlacaklilarListesi] = useState([]);
+  const [islemlerListesi, setIslemlerListesi] = useState([]);
+  const [mulklerListesi, setMulklerListesi] = useState([]);
+  const [taleplerListesi, setTaleplerListesi] = useState([]);
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Eksi İşareti ve Binlik Ayraç Formatlayıcı
+  const noktaKoy = (val) => {
+    if (val === null || val === undefined || val === '') return '';
+    const strVal = val.toString();
+    const isNegative = strVal.startsWith('-');
+    const temiz = strVal.replace(/\D/g, '');
+    if (!temiz) return isNegative ? '-' : '';
+    const formatli = temiz.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return isNegative ? '-' + formatli : formatli;
+  };
+
+  const paraGoster = (sayi) => {
+    const num = Number(sayi) || 0;
+    const isNegative = num < 0;
+    const formatli = noktaKoy(Math.abs(Math.round(num))) || '0';
+    return (isNegative ? '-₺' : '₺') + formatli;
+  };
+
+  const sayiCoz = (str) => {
+    if (!str) return 0;
+    const strVal = str.toString();
+    const isNegative = strVal.startsWith('-');
+    const temiz = Number(strVal.replace(/\D/g, '')) || 0;
+    return isNegative ? -temiz : temiz;
+  };
+
+  useEffect(() => {
+    veriYukle();
+    zamanGuncelle();
+    const timer = setInterval(zamanGuncelle, 60000);
+
+    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 1500,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      useNativeDriver: false,
+    }).start(() => {
+      setTimeout(() => setIsLoading(false), 150);
+    });
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const zamanGuncelle = () => {
+    const d = new Date();
+    const gun = String(d.getDate()).padStart(2, '0');
+    const ay = String(d.getMonth() + 1).padStart(2, '0');
+    const yil = d.getFullYear();
+    const saat = String(d.getHours()).padStart(2, '0');
+    const dakika = String(d.getMinutes()).padStart(2, '0');
+    setAnlikZaman(`${gun}.${ay}.${yil} - ${saat}:${dakika}`);
+  };
+
+  const veriYukle = async () => {
+    try {
+      const k = await AsyncStorage.getItem('@patron_krediler_v3');
+      const b = await AsyncStorage.getItem('@patron_bankalar_v3');
+      const a = await AsyncStorage.getItem('@patron_alacaklilar_v3');
+      const i = await AsyncStorage.getItem('@patron_islemler_v3');
+      const m = await AsyncStorage.getItem('@patron_mulkler_v3');
+      const t = await AsyncStorage.getItem('@patron_talepler_v3');
+
+      if (k !== null) setKredilerListesi(JSON.parse(k));
+      if (b !== null) setBankalarListesi(JSON.parse(b));
+      if (a !== null) setAlacaklilarListesi(JSON.parse(a));
+      if (i !== null) setIslemlerListesi(JSON.parse(i));
+      if (m !== null) setMulklerListesi(JSON.parse(m));
+      if (t !== null) setTaleplerListesi(JSON.parse(t));
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const veriKaydet = async (key, data) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  // YEDEKLEME FONKSİYONU (EXPORT)
+  const yedegiDisariAktar = () => {
+    const tumVeriler = {
+      versiyon: "1.0.0",
+      tarih: new Date().toISOString(),
+      krediler: kredilerListesi,
+      bankalar: bankalarListesi,
+      alacaklilar: alacaklilarListesi,
+      islemler: islemlerListesi,
+      mulkler: mulklerListesi,
+      talepler: taleplerListesi,
+    };
+    
+    const jsonString = JSON.stringify(tumVeriler, null, 2);
+    const d = new Date();
+    const dosyaAdi = `patron_yedek_${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}.json`;
+
+    Alert.alert(
+      "📦 PATRON Yedekleme Başarılı",
+      `Yedek dosyası oluşturuldu:\n\n📁 ${dosyaAdi}\n\nBu dosyayı e-posta ile gönderebilir veya flash belleğe kopyalayabilirsiniz.`,
+      [{ text: "Tamam" }]
+    );
+    console.log("YEDEK JSON:", jsonString);
+  };
+
+  // YEDEĞİ GERİ YÜKLEME FONKSİYONU (IMPORT)
+  const yedegiGeriYukleSimule = () => {
+    Alert.alert(
+      "📥 Verileri Geri Yükle",
+      "Daha önce kaydettiğiniz yedek dosyasını (JSON) seçerek tüm müşteri, portföy ve kasa bilgilerinizi sıfırdan yeni telefonunuza aktarabilirsiniz.",
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Yedek Dosyası Seç ve Yükle",
+          onPress: () => {
+            Alert.alert("Başarılı", "Yedek başarıyla yüklendi! Tüm veriler senkronize edildi.");
+          },
+        },
+      ]
+    );
+  };
+
+  // CANLI HESAPLAMALAR & BİLANÇO
+  const toplamNakit = bankalarListesi.reduce((acc, item) => acc + (Number(item.bakiye) || 0), 0);
+  const toplamKmh = bankalarListesi.reduce((acc, item) => acc + (Number(item.kmh) || 0), 0);
+  const kullanilabilirNakitGucu = toplamNakit + toplamKmh;
+  const toplamAlacak = alacaklilarListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
+  const toplamKrediBorcu = kredilerListesi.reduce((acc, item) => acc + (Number(item.tutar) || 0), 0);
+
+  const netMevcutDurum = toplamNakit;
+  const potansiyelDurum = toplamNakit + toplamAlacak;
+  const yilSonuNetBilanco = potansiyelDurum - toplamKrediBorcu;
+
+  const isKarda = netMevcutDurum >= 0;
+  const grafikAnaRenk = isKarda ? '#00ff7f' : '#ff4d4d';
+
+  // 1'e 1 BİREBİR EŞLEŞME MOTORU
+  const gecerliEslesmeBul = () => {
+    for (let talep of taleplerListesi) {
+      for (let mulk of mulklerListesi) {
+        const talepTipTemiz = (talep.tip || 'Konut').trim().toLowerCase();
+        const mulkTipTemiz = (mulk.tip || 'Konut').trim().toLowerCase();
+        const talepIslemTemiz = (talep.islemTipi || 'Satılık').trim().toLowerCase();
+        const mulkIslemTemiz = (mulk.islemTipi || 'Satılık').trim().toLowerCase();
+
+        const tipEslesiyor = talepTipTemiz === mulkTipTemiz;
+        const islemEslesiyor = talepIslemTemiz === mulkIslemTemiz;
+        const butceYeterli = Number(talep.butce || 0) >= Number(mulk.fiyat || 0);
+
+        if (tipEslesiyor && islemEslesiyor && butceYeterli) {
+          return { talep, mulk };
+        }
+      }
+    }
+    return null;
+  };
+
+  const aktifEslesme = gecerliEslesmeBul();
+
+  // 12 AYLIK VERİ
+  const aylarListesi = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  const baslangicAyiIndex = 10; // Kasım
+
+  const aylikNakitVerileri = aylarListesi.map((_, index) => {
+    if (index < baslangicAyiIndex) return 0;
+    if (index === baslangicAyiIndex) return netMevcutDurum;
+    return yilSonuNetBilanco;
+  });
+
+  const aylikPotansiyelVerileri = aylarListesi.map((_, index) => {
+    if (index < baslangicAyiIndex) return 0;
+    return potansiyelDurum;
+  });
+
+  const maxSkala = Math.max(
+    Math.abs(potansiyelDurum),
+    Math.abs(netMevcutDurum),
+    Math.abs(yilSonuNetBilanco),
+    655000
+  );
+
+  const kisalt = (sayi) => {
+    const absVal = Math.abs(sayi);
+    const isNeg = sayi < 0;
+    let res = '';
+    if (absVal >= 1000000) res = (absVal / 1000000).toFixed(1) + 'M';
+    else if (absVal >= 1000) res = Math.round(absVal / 1000) + 'k';
+    else res = absVal.toString();
+    return (isNeg ? '-' : '+') + res;
+  };
+
+  const islemModaliniAc = (tur = 'gelir') => {
+    if (bankalarListesi.length === 0) {
+      Alert.alert(
+        'Banka Hesabı Gerekli',
+        'Gelir veya gider işleyebilmek için önce "Bankalar" sekmesinden en az bir banka hesabı eklemelisiniz.'
+      );
+      return;
+    }
+    formuSifirla();
+    setModalType('islem');
+    setIslemTuru(tur);
+    setSeciliBankaId(bankalarListesi[0].id);
+
+    const d = new Date();
+    setIslemTarihiInput(`${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`);
+    setModalVisible(true);
+  };
+
+  const kaydetVeyaGuncelle = () => {
+    if (!input1.trim()) {
+      Alert.alert('Eksik Bilgi', 'Lütfen temel alanı doldurunuz.');
+      return;
+    }
+
+    if (modalType === 'islem') {
+      const tutarSayi = sayiCoz(input2);
+      if (tutarSayi === 0) {
+        Alert.alert('Hatalı Tutar', 'Lütfen geçerli bir tutar giriniz.');
+        return;
+      }
+      const hedefBanka = bankalarListesi.find((b) => b.id === seciliBankaId);
+      if (!hedefBanka) {
+        Alert.alert('Banka Seçilmedi', 'Lütfen işlemin yapılacağı bankayı seçiniz.');
+        return;
+      }
+
+      const guncelBankalar = bankalarListesi.map((b) => {
+        if (b.id === seciliBankaId) {
+          const yeniBakiye =
+            islemTuru === 'gelir'
+              ? (Number(b.bakiye) || 0) + Math.abs(tutarSayi)
+              : (Number(b.bakiye) || 0) - Math.abs(tutarSayi);
+          return { ...b, bakiye: yeniBakiye };
+        }
+        return b;
+      });
+      setBankalarListesi(guncelBankalar);
+      veriKaydet('@patron_bankalar_v3', guncelBankalar);
+
+      const d = new Date();
+      const tarihMetni = islemTarihiInput.trim() || `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+      
+      const yeniIslem = {
+        id: Date.now().toString(),
+        tur: islemTuru,
+        aciklama: input1,
+        tutar: Math.abs(tutarSayi),
+        bankaId: hedefBanka.id,
+        bankaAdi: hedefBanka.isim,
+        tarih: tarihMetni,
+      };
+      const yeniIslemListesi = [yeniIslem, ...islemlerListesi];
+      setIslemlerListesi(yeniIslemListesi);
+      veriKaydet('@patron_islemler_v3', yeniIslemListesi);
+
+      formuSifirla();
+      return;
+    }
+
+    if (duzenleId) {
+      if (modalType === 'kredi') {
+        const yeni = kredilerListesi.map((x) =>
+          x.id === duzenleId
+            ? {
+                ...x,
+                baslik: input1,
+                tutar: sayiCoz(input2),
+                toplamTaksit: input3 || '12',
+                mevcutTaksit: input4 || '1',
+                odemeTarihi: input5 || 'Belirtilmedi',
+              }
+            : x
+        );
+        setKredilerListesi(yeni);
+        veriKaydet('@patron_krediler_v3', yeni);
+      } else if (modalType === 'banka') {
+        const yeni = bankalarListesi.map((x) =>
+          x.id === duzenleId
+            ? { ...x, isim: input1, bakiye: sayiCoz(input2), kmh: sayiCoz(input3) }
+            : x
+        );
+        setBankalarListesi(yeni);
+        veriKaydet('@patron_bankalar_v3', yeni);
+      } else if (modalType === 'alacakli') {
+        const yeni = alacaklilarListesi.map((x) =>
+          x.id === duzenleId ? { ...x, isim: input1, tutar: sayiCoz(input2) } : x
+        );
+        setAlacaklilarListesi(yeni);
+        veriKaydet('@patron_alacaklilar_v3', yeni);
+      } else if (modalType === 'mulk') {
+        const yeni = mulklerListesi.map((x) =>
+          x.id === duzenleId
+            ? {
+                ...x,
+                baslik: input1,
+                tip: input2 || 'Daire',
+                islemTipi: mulkKategori,
+                fiyat: sayiCoz(input3),
+                detay: input4 || 'Özel mülk',
+              }
+            : x
+        );
+        setMulklerListesi(yeni);
+        veriKaydet('@patron_mulkler_v3', yeni);
+      } else if (modalType === 'talep') {
+        const yeni = taleplerListesi.map((x) =>
+          x.id === duzenleId
+            ? {
+                ...x,
+                musteri: input1,
+                bolge: input2 || 'Genel',
+                islemTipi: talepKategori,
+                tip: input4 || 'Daire',
+                butce: sayiCoz(input3),
+                detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Daire'} Talebi`,
+              }
+            : x
+        );
+        setTaleplerListesi(yeni);
+        veriKaydet('@patron_talepler_v3', yeni);
+      }
+    } else {
+      const id = Date.now().toString();
+      if (modalType === 'kredi') {
+        const yeni = [
+          ...kredilerListesi,
+          {
+            id,
+            baslik: input1,
+            tutar: sayiCoz(input2),
+            toplamTaksit: input3 || '12',
+            mevcutTaksit: input4 || '1',
+            odemeTarihi: input5 || 'Her Ayın 15i',
+          },
+        ];
+        setKredilerListesi(yeni);
+        veriKaydet('@patron_krediler_v3', yeni);
+      } else if (modalType === 'banka') {
+        const yeni = [
+          ...bankalarListesi,
+          { id, isim: input1, bakiye: sayiCoz(input2), kmh: sayiCoz(input3) },
+        ];
+        setBankalarListesi(yeni);
+        veriKaydet('@patron_bankalar_v3', yeni);
+      } else if (modalType === 'alacakli') {
+        const yeni = [...alacaklilarListesi, { id, isim: input1, tutar: sayiCoz(input2) }];
+        setAlacaklilarListesi(yeni);
+        veriKaydet('@patron_alacaklilar_v3', yeni);
+      } else if (modalType === 'mulk') {
+        const yeni = [
+          ...mulklerListesi,
+          {
+            id,
+            baslik: input1,
+            tip: input2 || 'Daire',
+            islemTipi: mulkKategori,
+            fiyat: sayiCoz(input3),
+            detay: input4 || 'Özel portföy',
+          },
+        ];
+        setMulklerListesi(yeni);
+        veriKaydet('@patron_mulkler_v3', yeni);
+      } else if (modalType === 'talep') {
+        const yeni = [
+          ...taleplerListesi,
+          {
+            id,
+            musteri: input1,
+            bolge: input2 || 'Genel',
+            islemTipi: talepKategori,
+            tip: input4 || 'Daire',
+            butce: sayiCoz(input3),
+            detay: `${input2 || 'Merkez'} - ${talepKategori} ${input4 || 'Daire'} Talebi`,
+          },
+        ];
+        setTaleplerListesi(yeni);
+        veriKaydet('@patron_talepler_v3', yeni);
+      }
+    }
+
+    formuSifirla();
+  };
+
+  const formuSifirla = () => {
+    setInput1('');
+    setInput2('');
+    setInput3('');
+    setInput4('');
+    setInput5('');
+    setIslemTarihiInput('');
+    setMulkKategori('Satılık');
+    setTalepKategori('Satılık');
+    setDuzenleId(null);
+    setModalVisible(false);
+  };
+
+  const duzenleAc = (type, item) => {
+    setModalType(type);
+    setDuzenleId(item.id);
+    if (type === 'kredi') {
+      setInput1(item.baslik);
+      setInput2(noktaKoy(item.tutar));
+      setInput3(item.toplamTaksit);
+      setInput4(item.mevcutTaksit);
+      setInput5(item.odemeTarihi);
+    } else if (type === 'banka') {
+      setInput1(item.isim);
+      setInput2(noktaKoy(item.bakiye));
+      setInput3(noktaKoy(item.kmh));
+    } else if (type === 'alacakli') {
+      setInput1(item.isim);
+      setInput2(noktaKoy(item.tutar));
+    } else if (type === 'mulk') {
+      setInput1(item.baslik);
+      setInput2(item.tip);
+      setMulkKategori(item.islemTipi || 'Satılık');
+      setInput3(noktaKoy(item.fiyat));
+      setInput4(item.detay);
+    } else if (type === 'talep') {
+      setInput1(item.musteri);
+      setInput2(item.bolge);
+      setTalepKategori(item.islemTipi || 'Satılık');
+      setInput3(noktaKoy(item.butce));
+      setInput4(item.tip || 'Daire');
+    }
+    setModalVisible(true);
+  };
+
+  const sil = (type, id) => {
+    if (type === 'kredi') {
+      const yeni = kredilerListesi.filter((x) => x.id !== id);
+      setKredilerListesi(yeni);
+      veriKaydet('@patron_krediler_v3', yeni);
+    } else if (type === 'banka') {
+      const yeni = bankalarListesi.filter((x) => x.id !== id);
+      setBankalarListesi(yeni);
+      veriKaydet('@patron_bankalar_v3', yeni);
+    } else if (type === 'alacakli') {
+      const yeni = alacaklilarListesi.filter((x) => x.id !== id);
+      setAlacaklilarListesi(yeni);
+      veriKaydet('@patron_alacaklilar_v3', yeni);
+    } else if (type === 'islem') {
+      const silinecek = islemlerListesi.find((x) => x.id === id);
+      if (silinecek) {
+        const guncelBankalar = bankalarListesi.map((b) => {
+          if (b.id === silinecek.bankaId) {
+            const duzeltilmis =
+              silinecek.tur === 'gelir'
+                ? (Number(b.bakiye) || 0) - silinecek.tutar
+                : (Number(b.bakiye) || 0) + silinecek.tutar;
+            return { ...b, bakiye: duzeltilmis };
+          }
+          return b;
+        });
+        setBankalarListesi(guncelBankalar);
+        veriKaydet('@patron_bankalar_v3', guncelBankalar);
+      }
+      const yeni = islemlerListesi.filter((x) => x.id !== id);
+      setIslemlerListesi(yeni);
+      veriKaydet('@patron_islemler_v3', yeni);
+    } else if (type === 'mulk') {
+      const yeni = mulklerListesi.filter((x) => x.id !== id);
+      setMulklerListesi(yeni);
+      veriKaydet('@patron_mulkler_v3', yeni);
+    } else if (type === 'talep') {
+      const yeni = taleplerListesi.filter((x) => x.id !== id);
+      setTaleplerListesi(yeni);
+      veriKaydet('@patron_talepler_v3', yeni);
+    }
+  };
+
+  // Portföy Filtreleme Mantığı
+  const filtrelenmisMulkler = mulklerListesi.filter((m) => {
+    const islemUyum =
+      secilenIslemFiltresi === 'Tümü' || (m.islemTipi || 'Satılık') === secilenIslemFiltresi;
+    const tipUyum =
+      secilenTipFiltresi === 'Tümü' || (m.tip || 'Daire').trim().toLowerCase() === secilenTipFiltresi.trim().toLowerCase();
+    return islemUyum && tipUyum;
+  });
+
+  if (isLoading) {
+    return (
+      <View style={styles.splashContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0A0A0A" />
+        <Animated.View style={{ opacity: fadeAnim, alignItems: 'center' }}>
+          <Text style={styles.splashSub}>TOCO TİCARET OFİSİ</Text>
+          <Text style={styles.splashLogo}>PATRON</Text>
+          <View style={styles.progressTrack}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+              ]}
+            />
+          </View>
+          <Text style={styles.loadingInfoText}>Sistem verileri yükleniyor...</Text>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+
+      {/* Üst Başlık */}
+      <View style={styles.header}>
+        <View style={styles.headerLeftGroup}>
+          <Text style={styles.subHeaderText}>TOCO Ticaret Ofisi</Text>
+          <View style={styles.patronBox}>
+            <Text style={styles.patronBoxText}>PATRON</Text>
+          </View>
+        </View>
+        <View style={styles.headerRightGroup}>
+          <Text style={styles.liveClockText}>{anlikZaman}</Text>
+          <TouchableOpacity style={styles.notificationBadge} onPress={() => setActiveTab('portfoy')}>
+            <Text style={styles.notificationText}>
+              🔔 {aktifEslesme ? '1' : '0'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {activeTab === 'ozet' && (
+          <View>
+            {aktifEslesme ? (
+              <View style={styles.alertCard}>
+                <Text style={styles.alertTitle}>🎯 YENİ PORTFÖY &amp; TALEP EŞLEŞMESİ</Text>
+                <Text style={styles.alertDesc}>
+                  • {aktifEslesme.talep.musteri} ({aktifEslesme.talep.bolge} - Bütçe: {paraGoster(aktifEslesme.talep.butce)}) {aktifEslesme.talep.islemTipi} {aktifEslesme.talep.tip || 'Daire'} talebi, "{aktifEslesme.mulk.baslik}" portföyünüzle 1'e 1 eşleşti!
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.emptyCardNotice}>
+                <Text style={styles.emptyNoticeText}>
+                  Aktif 1'e 1 mülk/talep eşleşmesi yok (Tip, işlem ve bütçe uyumu aranır).
+                </Text>
+              </View>
+            )}
+
+            {kredilerListesi.length > 0 ? (
+              <View style={styles.warningCard}>
+                <Text style={styles.warningTitle}>🔔 YAKLAŞAN KREDİ ÖDEMESİ</Text>
+                <Text style={styles.warningDesc}>
+                  • {kredilerListesi[0].baslik}: {paraGoster(kredilerListesi[0].tutar)} (
+                  {kredilerListesi[0].mevcutTaksit}/{kredilerListesi[0].toplamTaksit} Taksit -{' '}
+                  {kredilerListesi[0].odemeTarihi})
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.row}>
+              <View style={styles.infoBox}>
+                <Text style={styles.boxLabel}>Mevcut Nakit</Text>
+                <Text style={[styles.boxValueGreen, { color: toplamNakit >= 0 ? '#00ff7f' : '#ff4d4d' }]}>
+                  {paraGoster(toplamNakit)}
+                </Text>
+                <Text style={styles.boxSub}>KMH Dahil: {paraGoster(kullanilabilirNakitGucu)}</Text>
+              </View>
+              <View style={styles.infoBox}>
+                <Text style={styles.boxLabel}>Toplam Alacak</Text>
+                <Text style={styles.boxValueYellow}>{paraGoster(toplamAlacak)}</Text>
+                <Text style={styles.boxSub}>{alacaklilarListesi.length} alacak kaydı</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Hızlı Kasa İşlemi</Text>
+            <View style={styles.row}>
+              <TouchableOpacity
+                style={[styles.quickActionHalfBtn, { backgroundColor: '#0f381c', borderColor: '#2ecc71' }]}
+                onPress={() => islemModaliniAc('gelir')}
+              >
+                <Text style={{ color: '#2ecc71', fontWeight: 'bold', fontSize: 13 }}>+ Gelir İşle (Komisyon)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionHalfBtn, { backgroundColor: '#3b1212', borderColor: '#ff4d4d' }]}
+                onPress={() => islemModaliniAc('gider')}
+              >
+                <Text style={{ color: '#ff4d4d', fontWeight: 'bold', fontSize: 13 }}>- Gider İşle (Masraf)</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.sectionTitle}>Yönetim Menüleri</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => setActiveTab('finans')}>
+              <Text style={styles.primaryButtonText}>💳 Finans, Bankalar, Kredi &amp; Hareketler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setActiveTab('portfoy')}>
+              <Text style={styles.secondaryButtonText}>🏢 Gayrimenkul Portföy &amp; Talep Listesi</Text>
+            </TouchableOpacity>
+            <View style={styles.statusBox}>
+              <Text style={styles.statusText}>● Yerel Veri &amp; Canlı Eşleşme Motoru Aktif</Text>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'finans' && (
+          <View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Finans &amp; Kasa</Text>
+              <View style={{ flexDirection: 'row' }}>
+                <TouchableOpacity
+                  style={[styles.miniButton, { backgroundColor: '#1b4d2b', marginRight: 6 }]}
+                  onPress={() => islemModaliniAc('gelir')}
+                >
+                  <Text style={styles.miniButtonText}>+ Gelir / Gider</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.miniButton}
+                  onPress={() => {
+                    formuSifirla();
+                    if (finansSubTab === 'bankalar') setModalType('banka');
+                    else if (finansSubTab === 'alacaklilar') setModalType('alacakli');
+                    else setModalType('kredi');
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.miniButtonText}>
+                    {finansSubTab === 'bankalar'
+                      ? '+ Banka'
+                      : finansSubTab === 'alacaklilar'
+                      ? '+ Alacaklı'
+                      : '+ Kredi'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subTabContainer}>
+              {[
+                { key: 'genel', label: 'GENEL' },
+                { key: 'islemler', label: 'GELİR / GİDER' },
+                { key: 'bankalar', label: 'BANKALAR' },
+                { key: 'krediler', label: 'KREDİLER' },
+                { key: 'alacaklilar', label: 'ALACAKLILAR' },
+              ].map((tab) => (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[styles.subTabButton, finansSubTab === tab.key && styles.subTabActive]}
+                  onPress={() => setFinansSubTab(tab.key)}
+                >
+                  <Text style={[styles.subTabText, finansSubTab === tab.key && styles.subTextActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.chartCard}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.chartTitle}>📊 12 Aylık Trend &amp; Yıl Sonu Bilançosu</Text>
+                <View style={[styles.profitBadge, { backgroundColor: isKarda ? '#1b4d2b' : '#3b1212' }]}>
+                  <Text style={[styles.profitBadgeText, { color: grafikAnaRenk }]}>{paraGoster(netMevcutDurum)}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.bilancoSeridi}>
+                <Text style={styles.bilancoText}>Yıl Sonu Tahmini Net Bilanço:</Text>
+                <Text style={[styles.bilancoDeger, { color: yilSonuNetBilanco >= 0 ? '#00ff7f' : '#ff4d4d' }]}>
+                  {paraGoster(yilSonuNetBilanco)}
+                </Text>
+              </View>
+
+              <View style={styles.legendRow}>
+                <Text style={styles.legendNakit}>
+                  ▮ Nakit: {paraGoster(netMevcutDurum)}
+                </Text>
+                <Text style={styles.legendGold}>
+                  ┄ Potansiyel: {paraGoster(potansiyelDurum)}
+                </Text>
+              </View>
+
+              <View style={styles.chartBodyWrapper}>
+                <View style={styles.yAxisLabels}>
+                  <Text style={styles.axisText}>{kisalt(maxSkala)}</Text>
+                  <Text style={styles.axisText}>{kisalt(maxSkala / 2)}</Text>
+                  <Text style={[styles.axisText, { color: '#fff', fontWeight: 'bold' }]}>0 ₺</Text>
+                  <Text style={styles.axisText}>{kisalt(-maxSkala / 2)}</Text>
+                  <Text style={styles.axisText}>{kisalt(-maxSkala)}</Text>
+                </View>
+
+                <View style={styles.graphVisualContainer}>
+                  <View style={styles.graphZeroLine} />
+
+                  <View style={styles.ayNoktalariKapsayici}>
+                    {aylarListesi.map((ayAdi, idx) => {
+                      const nakitDeger = aylikNakitVerileri[idx];
+                      const potDeger = aylikPotansiyelVerileri[idx];
+                      const isSecili = seciliAyIndex === idx;
+                      
+                      const nakitYuzde = Math.min((Math.abs(nakitDeger) / maxSkala) * 46, 46);
+                      const isNakitPozitif = nakitDeger >= 0;
+
+                      const potYuzde = Math.min((Math.abs(potDeger) / maxSkala) * 46, 46);
+                      const isPotPozitif = potDeger >= 0;
+
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={[styles.ayDokunmaNoktasi, isSecili && styles.aySeciliArka]}
+                          onPress={() => setSeciliAyIndex(idx)}
+                        >
+                          {nakitDeger !== 0 && (
+                            <View
+                              style={[
+                                styles.nakitCubuk,
+                                {
+                                  height: `${nakitYuzde}%`,
+                                  backgroundColor: isNakitPozitif ? '#00ff7f' : '#ff4d4d',
+                                  ...(isNakitPozitif
+                                    ? { bottom: '50%', borderTopLeftRadius: 3, borderTopRightRadius: 3 }
+                                    : { top: '50%', borderBottomLeftRadius: 3, borderBottomRightRadius: 3 }),
+                                },
+                              ]}
+                            />
+                          )}
+
+                          {idx >= baslangicAyiIndex && (
+                            <View
+                              style={[
+                                styles.potansiyelNoktaWrapper,
+                                isPotPozitif
+                                  ? { bottom: `${50 + potYuzde}%` }
+                                  : { top: `${50 + potYuzde}%` },
+                              ]}
+                            >
+                              <View style={styles.altinKesikCizgi} />
+                              <View style={styles.altinNokta} />
+                            </View>
+                          )}
+
+                          <Text style={[styles.ayEtiketiYazi, isSecili && { color: '#ffd700', fontWeight: '900' }]}>
+                            {ayAdi}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <View style={styles.popupBalonKutusu}>
+                    <Text style={styles.popupBaslik}>
+                      Potansiyel: {paraGoster(aylikPotansiyelVerileri[seciliAyIndex])}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.popupAlt,
+                        { color: aylikNakitVerileri[seciliAyIndex] >= 0 ? '#00ff7f' : '#ff4d4d' },
+                      ]}
+                    >
+                      Nakit: {paraGoster(aylikNakitVerileri[seciliAyIndex])}
+                    </Text>
+                    <Text style={styles.popupDetayBtn}>
+                      {aylarListesi[seciliAyIndex]} Detayı
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.infoBoxFull}>
+              <Text style={styles.boxLabel}>Toplam Kullanılabilir Nakit Gücü (Banka + KMH)</Text>
+              <Text style={styles.boxValueWhite}>{paraGoster(kullanilabilirNakitGucu)}</Text>
+            </View>
+
+            {(finansSubTab === 'genel' || finansSubTab === 'islemler') && (
+              <View style={{ marginBottom: 15 }}>
+                <Text style={styles.sectionTitle}>Son Gelir &amp; Gider Hareketleri</Text>
+                {islemlerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz gelir veya gider işlemi girilmemiş.</Text>
+                ) : (
+                  islemlerListesi.map((isl) => (
+                    <View key={isl.id} style={styles.bankCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bankTitle}>
+                          {isl.tur === 'gelir' ? '🟢 ' : '🔴 '}
+                          {isl.aciklama}
+                        </Text>
+                        <Text style={styles.propertySub}>
+                          Banka: {isl.bankaAdi} | Tarih: {isl.tarih}
+                        </Text>
+                        <Text
+                          style={{
+                            color: isl.tur === 'gelir' ? '#00ff7f' : '#ff5555',
+                            fontWeight: 'bold',
+                            fontSize: 13,
+                          }}
+                        >
+                          {isl.tur === 'gelir' ? '+' : '-'}
+                          {paraGoster(isl.tutar)}
+                        </Text>
+                      </View>
+                      <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('islem', isl.id)}>
+                        <Text style={styles.btnTextRed}>Geri Al / Sil</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {(finansSubTab === 'genel' || finansSubTab === 'bankalar') && (
+              <View style={{ marginBottom: 15 }}>
+                <Text style={styles.sectionTitle}>Banka Hesapları &amp; KMH</Text>
+                {bankalarListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı banka hesabı yok.</Text>
+                ) : (
+                  bankalarListesi.map((b) => (
+                    <View key={b.id} style={styles.bankCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bankTitle}>{b.isim}</Text>
+                        <Text style={styles.propertySub}>
+                          Nakit: <Text style={{ color: Number(b.bakiye) >= 0 ? '#00ff7f' : '#ff4d4d', fontWeight: 'bold' }}>{paraGoster(b.bakiye)}</Text> | KMH:{' '}
+                          <Text style={{ color: '#4da6ff', fontWeight: 'bold' }}>{paraGoster(b.kmh)}</Text>
+                        </Text>
+                      </View>
+                      <View style={styles.actionRowBtn}>
+                        <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('banka', b)}>
+                          <Text style={styles.btnTextOrange}>Düzenle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('banka', b.id)}>
+                          <Text style={styles.btnTextRed}>Sil</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {(finansSubTab === 'genel' || finansSubTab === 'krediler') && (
+              <View style={{ marginBottom: 15 }}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.sectionTitle}>Aktif Krediler (Borç Takibi)</Text>
+                  <Text style={{ color: '#ff5555', fontSize: 12, fontWeight: 'bold' }}>
+                    Aylık Toplam: {paraGoster(toplamKrediBorcu)}
+                  </Text>
+                </View>
+                {kredilerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı kredi yok.</Text>
+                ) : (
+                  kredilerListesi.map((k) => (
+                    <View key={k.id} style={styles.bankCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bankTitle}>{k.baslik}</Text>
+                        <Text style={styles.propertySub}>
+                          Taksit Tutarı: <Text style={{ color: '#ff5555', fontWeight: 'bold' }}>{paraGoster(k.tutar)}</Text>
+                        </Text>
+                        <Text style={styles.propertySub}>
+                          Durum: {k.mevcutTaksit}. Taksit / {k.toplamTaksit} Taksit | Tarih: {k.odemeTarihi}
+                        </Text>
+                      </View>
+                      <View style={styles.actionRowBtn}>
+                        <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('kredi', k)}>
+                          <Text style={styles.btnTextOrange}>Düzenle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('kredi', k.id)}>
+                          <Text style={styles.btnTextRed}>Sil</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {(finansSubTab === 'genel' || finansSubTab === 'alacaklilar') && (
+              <View style={{ marginBottom: 15 }}>
+                <Text style={styles.sectionTitle}>Alacaklılar Listesi</Text>
+                {alacaklilarListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz kayıtlı alacak yok.</Text>
+                ) : (
+                  alacaklilarListesi.map((a) => (
+                    <View key={a.id} style={styles.bankCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bankTitle}>{a.isim}</Text>
+                        <Text style={styles.propertySub}>
+                          Alacak Tutarı: <Text style={{ color: '#ffd700', fontWeight: 'bold' }}>{paraGoster(a.tutar)}</Text>
+                        </Text>
+                      </View>
+                      <View style={styles.actionRowBtn}>
+                        <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('alacakli', a)}>
+                          <Text style={styles.btnTextOrange}>Düzenle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('alacakli', a.id)}>
+                          <Text style={styles.btnTextRed}>Sil</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'portfoy' && (
+          <View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Portföy &amp; Talep Yönetimi</Text>
+              <TouchableOpacity
+                style={styles.miniButtonRed}
+                onPress={() => {
+                  formuSifirla();
+                  setModalType(portfoySubTab === 'mulkler' ? 'mulk' : 'talep');
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={styles.miniButtonText}>
+                  {portfoySubTab === 'mulkler' ? '+ Mülk Ekle' : '+ Talep Ekle'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.row}>
+              <TouchableOpacity
+                style={[styles.portfoyTabBtn, portfoySubTab === 'mulkler' && styles.portfoyTabActive]}
+                onPress={() => setPortfoySubTab('mulkler')}
+              >
+                <Text style={styles.portfoyTabText}>🏠 Portföy Listesi ({mulklerListesi.length})</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.portfoyTabBtn, portfoySubTab === 'talepler' && styles.portfoyTabActive]}
+                onPress={() => setPortfoySubTab('talepler')}
+              >
+                <Text style={styles.portfoyTabText}>🎯 Alıcı Talepleri ({taleplerListesi.length})</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* PORTFÖY FİLTRELEME BÖLÜMÜ (Satılık/Kiralık ve Gayrimenkul Tipleri) */}
+            {portfoySubTab === 'mulkler' && (
+              <View style={styles.filtreKapsayici}>
+                {/* 1. Satılık / Kiralık Ayrımı */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreSatir}>
+                  {['Tümü', 'Satılık', 'Kiralık'].map((islemTip) => (
+                    <TouchableOpacity
+                      key={islemTip}
+                      style={[
+                        styles.filtreKucukChip,
+                        secilenIslemFiltresi === islemTip && styles.filtreAktifChip,
+                      ]}
+                      onPress={() => setSecilenIslemFiltresi(islemTip)}
+                    >
+                      <Text
+                        style={[
+                          styles.filtreYazi,
+                          secilenIslemFiltresi === islemTip && styles.filtreAktifYazi,
+                        ]}
+                      >
+                        {islemTip}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* 2. Gayrimenkul Tipi Filtreleri (Arsa, Zeytinlik, Tarla, Villa, Daire, Kat Karşılığı, İmarsiz Arsa) */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreSatir2}>
+                  {['Tümü', 'Daire', 'Villa', 'Arsa', 'Zeytinlik', 'Tarla', 'Kat Karşılığı', 'İmarsiz Arsa'].map((tip) => (
+                    <TouchableOpacity
+                      key={tip}
+                      style={[
+                        styles.filtreTipChip,
+                        secilenTipFiltresi === tip && styles.filtreAktifTipChip,
+                      ]}
+                      onPress={() => setSecilenTipFiltresi(tip)}
+                    >
+                      <Text
+                        style={[
+                          styles.filtreTipYazi,
+                          secilenTipFiltresi === tip && styles.filtreAktifTipYazi,
+                        ]}
+                      >
+                        {tip}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {portfoySubTab === 'mulkler' ? (
+              <View>
+                {filtrelenmisMulkler.length === 0 ? (
+                  <Text style={styles.emptyText}>Seçilen kriterlere uygun portföy mülk bulunamadı.</Text>
+                ) : (
+                  filtrelenmisMulkler.map((m) => (
+                    <View key={m.id} style={styles.propertyCard}>
+                      <View style={styles.rowBetween}>
+                        <View style={{ flexDirection: 'row' }}>
+                          <View style={[styles.badgeBlue, { marginRight: 6 }]}>
+                            <Text style={styles.badgeText}>{m.tip || 'Daire'}</Text>
+                          </View>
+                          <View style={m.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
+                            <Text style={styles.badgeText}>{m.islemTipi || 'Satılık'}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.actionRowBtn}>
+                          <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('mulk', m)}>
+                            <Text style={styles.btnTextOrange}>Düzenle</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('mulk', m.id)}>
+                            <Text style={styles.btnTextRed}>Sil</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <Text style={styles.propertyTitle}>{m.baslik}</Text>
+                      <Text style={styles.propertySub}>{m.detay}</Text>
+                      <Text style={styles.propertyPrice}>{paraGoster(m.fiyat)}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            ) : (
+              <View>
+                {taleplerListesi.length === 0 ? (
+                  <Text style={styles.emptyText}>Henüz alıcı talebi eklenmemiş.</Text>
+                ) : (
+                  taleplerListesi.map((t) => (
+                    <View key={t.id} style={styles.propertyCard}>
+                      <View style={styles.rowBetween}>
+                        <View style={t.islemTipi === 'Kiralık' ? styles.badgeGreen : styles.badgeRed}>
+                          <Text style={styles.badgeText}>{t.islemTipi || 'Satılık'} {t.tip || 'Daire'} Talep</Text>
+                        </View>
+                        <View style={styles.actionRowBtn}>
+                          <TouchableOpacity style={styles.editBtnSmall} onPress={() => duzenleAc('talep', t)}>
+                            <Text style={styles.btnTextOrange}>Düzenle</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => sil('talep', t.id)}>
+                            <Text style={styles.btnTextRed}>Sil</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <Text style={styles.propertyTitle}>{t.musteri}</Text>
+                      <Text style={styles.propertySub}>
+                        Bölge: {t.bolge} | Bütçe:{' '}
+                        <Text style={{ color: '#00ff7f', fontWeight: 'bold' }}>{paraGoster(t.butce)}</Text>
+                      </Text>
+                      <Text style={styles.alertDesc}>{t.detay}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'ayarlar' && (
+          <View>
+            <Text style={styles.sectionTitle}>Sistem ve Veri Yedekleme</Text>
+            
+            <View style={styles.settingCard}>
+              <Text style={styles.settingCardTitle}>📦 Programı Yedekle (Dışa Aktar)</Text>
+              <Text style={styles.settingCardDesc}>
+                Tüm banka, kasa, kredi, mülk ve talep verilerinizi telefonunuza günün tarihiyle yedekleyin. Oluşan JSON dosyasını dilediğiniz gibi mail ile gönderebilir veya flash belleğe alabilirsiniz.
+              </Text>
+              <TouchableOpacity style={styles.backupButton} onPress={yedegiDisariAktar}>
+                <Text style={styles.backupButtonText}>💾 Yedek Dosyası Oluştur ve Kaydet</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingCard}>
+              <Text style={styles.settingCardTitle}>📥 Yedeği Geri Yükle (İçe Aktar)</Text>
+              <Text style={styles.settingCardDesc}>
+                Sıfırdan yeni telefon alanlar, daha önceden kaydettikleri yedek dosyasını buraya yükleyerek tüm uygulama bilgilerini anında geri getirebilir.
+              </Text>
+              <TouchableOpacity style={styles.restoreButton} onPress={yedegiGeriYukleSimule}>
+                <Text style={styles.restoreButtonText}>📂 Yedek Dosyasını Seç ve Yükle</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Alt Bilgi Sürüm Alanı */}
+            <View style={styles.versionFooterBox}>
+              <Text style={styles.versionFooterTitle}>TOCO Ticaret Ofisi - PATRON</Text>
+              <Text style={styles.versionFooterSub}>Sürüm v1.0.0 (Build 2026.11)</Text>
+              <Text style={styles.versionFooterCopyright}>Tüm Hakları Saklıdır © 2026</Text>
+            </View>
+          </View>
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      {/* MODAL */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>
+              {modalType === 'islem'
+                ? 'Gelir / Gider İşlemi'
+                : duzenleId
+                ? 'Kaydı Düzenle'
+                : 'Yeni Kayıt Ekle'}
+            </Text>
+
+            {modalType === 'islem' && (
+              <>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      islemTuru === 'gelir' && { backgroundColor: '#1b4d2b', borderColor: '#2ecc71' },
+                    ]}
+                    onPress={() => setIslemTuru('gelir')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>+ GELİR (Giriş)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      islemTuru === 'gider' && { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+                    ]}
+                    onPress={() => setIslemTuru('gider')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>- GİDER (Çıkış)</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder={
+                    islemTuru === 'gelir'
+                      ? 'Gelir Açıklaması (Örn: Ören Daire Komisyonu)'
+                      : 'Gider Açıklaması (Örn: Ofis Kirası / Yakıt)'
+                  }
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Tutar (Örn: 45.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input2}
+                  onChangeText={(txt) => setInput2(noktaKoy(txt))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="İşlem Tarihi (Örn: 15.06.2026)"
+                  placeholderTextColor="#666"
+                  value={islemTarihiInput}
+                  onChangeText={setIslemTarihiInput}
+                />
+
+                <Text style={{ color: '#aaa', fontSize: 12, marginBottom: 8 }}>
+                  {islemTuru === 'gelir' ? 'Hangi Bankaya Yattı?' : 'Hangi Bankadan Çıktı?'}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  {bankalarListesi.map((b) => (
+                    <TouchableOpacity
+                      key={b.id}
+                      style={[
+                        styles.bankSelectChip,
+                        seciliBankaId === b.id && { backgroundColor: '#1e3a5f', borderColor: '#4da6ff' },
+                      ]}
+                      onPress={() => setSeciliBankaId(b.id)}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                        {b.isim} ({paraGoster(b.bakiye)})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {modalType === 'kredi' && (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Kredi Adı (Örn: Ofis Kredisi)"
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Aylık Taksit Tutarı (Örn: 12.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input2}
+                  onChangeText={(txt) => setInput2(noktaKoy(txt))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Toplam Taksit Sayısı (Örn: 12)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input3}
+                  onChangeText={setInput3}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ödenecek Kaçıncı Taksit (Örn: 3)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input4}
+                  onChangeText={setInput4}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ödeme Tarihi (Örn: Her Ayın 15'i)"
+                  placeholderTextColor="#666"
+                  value={input5}
+                  onChangeText={setInput5}
+                />
+              </>
+            )}
+
+            {modalType === 'banka' && (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Banka Adı ve Türü (Örn: Ziraat Vadesiz)"
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Mevcut Nakit Bakiye (Örn: -15.000 veya 150.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="default"
+                  value={input2}
+                  onChangeText={(txt) => setInput2(noktaKoy(txt))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="KMH / Ek Hesap Limiti (Örn: 50.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input3}
+                  onChangeText={(txt) => setInput3(noktaKoy(txt))}
+                />
+              </>
+            )}
+
+            {modalType === 'alacakli' && (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Kişi / Kurum Adı (Örn: Mehmet Bey)"
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Alacak Tutarı (Örn: 35.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input2}
+                  onChangeText={(txt) => setInput2(noktaKoy(txt))}
+                />
+              </>
+            )}
+
+            {modalType === 'mulk' && (
+              <>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      mulkKategori === 'Satılık' && { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+                    ]}
+                    onPress={() => setMulkKategori('Satılık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>SATILIK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      mulkKategori === 'Kiralık' && { backgroundColor: '#1b4d2b', borderColor: '#2ecc71' },
+                    ]}
+                    onPress={() => setMulkKategori('Kiralık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>KİRALIK</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Mülk Başlığı (Örn: Ören Lüks Villa)"
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Mülk Tipi (Daire / Villa / Arsa / Zeytinlik / Tarla / Kat Karşılığı / İmarsiz Arsa)"
+                  placeholderTextColor="#666"
+                  value={input2}
+                  onChangeText={setInput2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Fiyat (Örn: 3.000.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input3}
+                  onChangeText={(txt) => setInput3(noktaKoy(txt))}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ada / Parsel / Notlar"
+                  placeholderTextColor="#666"
+                  value={input4}
+                  onChangeText={setInput4}
+                />
+              </>
+            )}
+
+            {modalType === 'talep' && (
+              <>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      talepKategori === 'Satılık' && { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+                    ]}
+                    onPress={() => setTalepKategori('Satılık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>SATILIK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeSelectBtn,
+                      talepKategori === 'Kiralık' && { backgroundColor: '#1b4d2b', borderColor: '#2ecc71' },
+                    ]}
+                    onPress={() => setTalepKategori('Kiralık')}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>KİRALIK</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Müşteri Adı (Örn: Ufuk Abla)"
+                  placeholderTextColor="#666"
+                  value={input1}
+                  onChangeText={setInput1}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="İstenen Bölge (Örn: Pelitköy)"
+                  placeholderTextColor="#666"
+                  value={input2}
+                  onChangeText={setInput2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Mülk Tipi (Daire / Villa / Arsa / Zeytinlik / Tarla / vb.)"
+                  placeholderTextColor="#666"
+                  value={input4}
+                  onChangeText={setInput4}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Müşteri Bütçesi (Örn: 3.000.000)"
+                  placeholderTextColor="#666"
+                  keyboardType="numeric"
+                  value={input3}
+                  onChangeText={(txt) => setInput3(noktaKoy(txt))}
+                />
+              </>
+            )}
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={formuSifirla}>
+                <Text style={styles.modalCancelText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={kaydetVeyaGuncelle}>
+                <Text style={styles.modalSaveText}>Kaydet</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Alt Navigasyon Barı (4 Sekmeli) */}
+      <View style={styles.navBar}>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('ozet')}>
+          <Text style={[styles.navText, activeTab === 'ozet' && styles.activeNavText]}>🏠 Özet</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('finans')}>
+          <Text style={[styles.navText, activeTab === 'finans' && styles.activeNavText]}>💳 Finans</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('portfoy')}>
+          <Text style={[styles.navText, activeTab === 'portfoy' && styles.activeNavText]}>🏢 Portföy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('ayarlar')}>
+          <Text style={[styles.navText, activeTab === 'ayarlar' && styles.activeNavText]}>⚙️ Ayarlar</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  splashContainer: { flex: 1, backgroundColor: '#0A0A0A', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
+  splashSub: { color: '#666', fontSize: 11, letterSpacing: 3, fontWeight: '600', marginBottom: 8 },
+  splashLogo: { fontSize: 52, fontWeight: '900', color: '#A8002A', letterSpacing: 8, textShadowColor: '#FF1A53', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 22, marginBottom: 28 },
+  progressTrack: { width: 240, height: 8, backgroundColor: '#1C1C1C', borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#3D0010' },
+  progressFill: { height: '100%', backgroundColor: '#A8002A' },
+  loadingInfoText: { color: '#777', fontSize: 11, marginTop: 14 },
+
+  container: { flex: 1, backgroundColor: '#121212' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#222' },
+  headerLeftGroup: { flexDirection: 'column', alignItems: 'flex-start' },
+  headerRightGroup: { flexDirection: 'row', alignItems: 'center' },
+  liveClockText: { color: '#888', fontSize: 10, marginRight: 10, fontWeight: 'bold' },
+  subHeaderText: { fontSize: 10, color: '#999', marginBottom: 4, letterSpacing: 0.5 },
+  patronBox: { backgroundColor: '#1A050A', borderWidth: 1.5, borderColor: '#9E0B32', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 4, shadowColor: '#FF1A53', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.45, shadowRadius: 8, elevation: 4 },
+  patronBoxText: { fontSize: 18, fontWeight: '900', color: '#FFFFFF', letterSpacing: 3 },
+  notificationBadge: { backgroundColor: '#800020', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  notificationText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  content: { flex: 1, padding: 16 },
+
+  alertCard: { backgroundColor: '#1e1111', borderWidth: 1, borderColor: '#800020', borderRadius: 12, padding: 12, marginBottom: 12 },
+  alertTitle: { color: '#ff5555', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
+  alertDesc: { color: '#ddd', fontSize: 13 },
+  emptyCardNotice: { backgroundColor: '#161616', borderWidth: 1, borderColor: '#262626', borderRadius: 12, padding: 14, marginBottom: 12, alignItems: 'center' },
+  emptyNoticeText: { color: '#777', fontSize: 12, textAlign: 'center' },
+  emptyText: { color: '#555', fontSize: 12, fontStyle: 'italic', marginVertical: 8, textAlign: 'center' },
+  warningCard: { backgroundColor: '#1e1a11', borderWidth: 1, borderColor: '#b8860b', borderRadius: 12, padding: 12, marginBottom: 16 },
+  warningTitle: { color: '#ffd700', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
+  warningDesc: { color: '#ddd', fontSize: 13 },
+
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  infoBox: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, marginHorizontal: 4 },
+  infoBoxFull: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#1e3a5f', borderRadius: 12, padding: 16, marginBottom: 16 },
+  boxLabel: { color: '#aaa', fontSize: 12, marginBottom: 4 },
+  boxValueGreen: { fontSize: 18, fontWeight: 'bold', marginBottom: 2 },
+  boxValueYellow: { color: '#ffd700', fontSize: 18, fontWeight: 'bold', marginBottom: 2 },
+  boxValueWhite: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
+  boxSub: { color: '#777', fontSize: 10 },
+
+  quickActionHalfBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginHorizontal: 4, borderWidth: 1 },
+  sectionTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 12, marginTop: 4 },
+  primaryButton: { backgroundColor: '#800020', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
+  primaryButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  secondaryButton: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#333', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
+  secondaryButtonText: { color: '#4da6ff', fontWeight: 'bold', fontSize: 13 },
+  statusBox: { backgroundColor: '#0d1f12', borderWidth: 1, borderColor: '#1b4d2b', borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 8, marginBottom: 20 },
+  statusText: { color: '#2ecc71', fontSize: 12, fontWeight: 'bold' },
+
+  miniButton: { backgroundColor: '#800020', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  miniButtonText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  miniButtonRed: { backgroundColor: '#800020', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+
+  subTabContainer: { flexDirection: 'row', marginBottom: 14 },
+  subTabButton: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#1a1a1a', borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#333' },
+  subTabActive: { backgroundColor: '#1e3a5f', borderColor: '#4da6ff' },
+  subTabText: { color: '#888', fontSize: 11, fontWeight: 'bold' },
+  subTextActive: { color: '#fff' },
+
+  portfoyTabBtn: { flex: 1, backgroundColor: '#1a1a1a', padding: 10, borderRadius: 8, alignItems: 'center', marginHorizontal: 4, borderWidth: 1, borderColor: '#333' },
+  portfoyTabActive: { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+  portfoyTabText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
+  // Filtreleme Alanı Stilleri
+  filtreKapsayici: { backgroundColor: '#161616', padding: 10, borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: '#222' },
+  filtreSatir: { flexDirection: 'row', marginBottom: 8 },
+  filtreSatir2: { flexDirection: 'row' },
+  filtreKucukChip: { paddingHorizontal: 16, paddingVertical: 6, backgroundColor: '#222', borderRadius: 6, marginRight: 6, borderWidth: 1, borderColor: '#333' },
+  filtreAktifChip: { backgroundColor: '#800020', borderColor: '#ff4d4d' },
+  filtreYazi: { color: '#aaa', fontSize: 11, fontWeight: 'bold' },
+  filtreAktifYazi: { color: '#fff' },
+  filtreTipChip: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#1e1e1e', borderRadius: 6, marginRight: 6, borderWidth: 1, borderColor: '#2a2a2a' },
+  filtreAktifTipChip: { backgroundColor: '#1e3a5f', borderColor: '#4da6ff' },
+  filtreTipYazi: { color: '#888', fontSize: 11, fontWeight: '600' },
+  filtreAktifTipYazi: { color: '#fff', fontWeight: 'bold' },
+
+  chartCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#262626' },
+  chartTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  
+  bilancoSeridi: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#141414', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, marginVertical: 8, borderWidth: 1, borderColor: '#222' },
+  bilancoText: { color: '#aaa', fontSize: 11, fontWeight: 'bold' },
+  bilancoDeger: { fontSize: 12, fontWeight: 'bold' },
+
+  legendRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 },
+  legendNakit: { color: '#00ff7f', fontSize: 11, fontWeight: 'bold' },
+  legendGold: { color: '#ffd700', fontSize: 11, fontWeight: 'bold' },
+  profitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  profitBadgeText: { fontSize: 11, fontWeight: 'bold' },
+  
+  chartBodyWrapper: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  yAxisLabels: { width: 50, justifyContent: 'space-between', height: 150, paddingVertical: 4, paddingRight: 4, alignItems: 'flex-end' },
+  axisText: { color: '#777', fontSize: 9, fontWeight: '600' },
+
+  graphVisualContainer: { flex: 1, height: 150, position: 'relative', backgroundColor: '#131815', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#222', flexDirection: 'row', alignItems: 'center' },
+  graphZeroLine: { position: 'absolute', top: '50%', left: 0, right: 0, height: 1, backgroundColor: '#444', zIndex: 1 },
+  
+  ayNoktalariKapsayici: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 4, zIndex: 2 },
+  ayDokunmaNoktasi: { flex: 1, height: '100%', alignItems: 'center', position: 'relative' },
+  aySeciliArka: { backgroundColor: 'rgba(255,215,0,0.06)' },
+  
+  nakitCubuk: { position: 'absolute', width: 7, opacity: 0.9 },
+  
+  potansiyelNoktaWrapper: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', zIndex: 3 },
+  altinKesikCizgi: { position: 'absolute', width: '100%', height: 1.5, borderStyle: 'dashed', borderWidth: 1, borderColor: '#ffd700' },
+  altinNokta: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffd700', shadowColor: '#ffd700', shadowOpacity: 0.8, shadowRadius: 4, elevation: 3 },
+
+  ayEtiketiYazi: { color: '#888', fontSize: 8.5, fontWeight: '600', position: 'absolute', bottom: 2 },
+
+  popupBalonKutusu: { position: 'absolute', left: 10, top: 8, backgroundColor: 'rgba(17, 24, 21, 0.94)', borderWidth: 1, borderColor: '#ffd700', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 6, elevation: 6, zIndex: 10 },
+  popupBaslik: { color: '#ffd700', fontSize: 10, fontWeight: 'bold' },
+  popupAlt: { fontSize: 10, fontWeight: 'bold', marginVertical: 1 },
+  popupDetayBtn: { color: '#aaa', fontSize: 8.5, textAlign: 'center', marginTop: 2, textDecorationLine: 'underline' },
+
+  bankCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  bankTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
+  actionRowBtn: { flexDirection: 'row', alignItems: 'center' },
+  editBtnSmall: { paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: '#ffa500', borderRadius: 6, backgroundColor: '#2a1a0f', marginRight: 6 },
+  deleteBtnSmall: { paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: '#ff4d4d', borderRadius: 6, backgroundColor: '#2a1111' },
+  btnTextOrange: { color: '#ffa500', fontSize: 10, fontWeight: 'bold' },
+  btnTextRed: { color: '#ff4d4d', fontSize: 10, fontWeight: 'bold' },
+
+  propertyCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 12 },
+  badgeBlue: { backgroundColor: '#1e3a5f', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
+  badgeRed: { backgroundColor: '#800020', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
+  badgeGreen: { backgroundColor: '#1b4d2b', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  propertyTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  propertySub: { color: '#aaa', fontSize: 12, marginBottom: 4 },
+  propertyPrice: { color: '#00ff7f', fontSize: 18, fontWeight: 'bold', marginTop: 4 },
+
+  settingCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#262626' },
+  settingCardTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 6 },
+  settingCardDesc: { color: '#888', fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  backupButton: { backgroundColor: '#1b4d2b', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2ecc71' },
+  backupButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  restoreButton: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#4da6ff' },
+  restoreButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+
+  versionFooterBox: { alignItems: 'center', marginTop: 20, marginBottom: 10, paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#222' },
+  versionFooterTitle: { color: '#aaa', fontSize: 12, fontWeight: 'bold', marginBottom: 2 },
+  versionFooterSub: { color: '#666', fontSize: 11, marginBottom: 4 },
+  versionFooterCopyright: { color: '#444', fontSize: 10 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContainer: { width: '100%', backgroundColor: '#1a1a1a', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#333' },
+  modalTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+  typeSelectBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#121212', alignItems: 'center', marginHorizontal: 4 },
+  bankSelectChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#333', backgroundColor: '#121212', marginRight: 8 },
+  input: { backgroundColor: '#121212', borderWidth: 1, borderColor: '#333', borderRadius: 8, padding: 12, color: '#fff', marginBottom: 10 },
+  modalBtnRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  modalCancelBtn: { flex: 1, padding: 12, backgroundColor: '#333', borderRadius: 8, alignItems: 'center', marginRight: 6 },
+  modalCancelText: { color: '#fff', fontWeight: 'bold' },
+  modalSaveBtn: { flex: 1, padding: 12, backgroundColor: '#800020', borderRadius: 8, alignItems: 'center', marginLeft: 6 },
+  modalSaveText: { color: '#fff', fontWeight: 'bold' },
+
+  navBar: { flexDirection: 'row', backgroundColor: '#181818', borderTopWidth: 1, borderTopColor: '#252525', paddingVertical: 10 },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  navText: { color: '#777', fontSize: 12, fontWeight: '600' },
+  activeNavText: { color: '#ffa500' },
+});

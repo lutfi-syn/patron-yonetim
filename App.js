@@ -1,3 +1,4 @@
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
@@ -15,7 +16,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function App() {
+function MainApp() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ozet'); // 'ozet', 'finans', 'portfoy', 'ayarlar'
   const [finansSubTab, setFinansSubTab] = useState('genel'); // 'genel', 'islemler', 'bankalar', 'krediler', 'alacaklilar'
@@ -1621,3 +1622,23 @@ const styles = StyleSheet.create({
   navText: { color: '#777', fontSize: 12, fontWeight: '600' },
   activeNavText: { color: '#ffa500' },
 });
+
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <SafeWrapper />
+    </SafeAreaProvider>
+  );
+}
+
+function SafeWrapper() {
+  const insets = useSafeAreaInsets();
+  const { View, StatusBar } = require("react-native");
+  return (
+    <View style={{ flex: 1, backgroundColor: "#0d0d0d", paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }}>
+      <StatusBar barStyle="light-content" backgroundColor="#0d0d0d" />
+      <MainApp />
+    </View>
+  );
+}
