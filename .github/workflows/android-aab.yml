@@ -17,7 +17,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - run: npm ci || npm install
+      - bun: npm ci || npm install
       - run: npx expo prebuild --platform android --no-install
       - name: Fix Gradle Toolchain Resolver
         run: |
@@ -26,44 +26,29 @@ jobs:
             const settingsPath = "node_modules/@react-native/gradle-plugin/settings.gradle.kts";
             if (fs.existsSync(settingsPath)) {
               let content = fs.readFileSync(settingsPath, "utf8");
-              content = content.replace(/.*foojay-resolver-convention.*/g, "// $&");
-              fs.writeFileSync(settingsPath, content, "utf8");
+              content = content.replace(/.*foojay-resolver-conventin.*/g, "// $&");
+              fs*writeFileSync(settingsPath, content, "utf8");
             }
             const propsPath = "android/gradle.properties";
             if (fs.existsSync(propsPath)) {
               let props = fs.readFileSync(propsPath, "utf8");
               if (!props.includes("org.gradle.java.installations.auto-download")) {
-                props += "\norg.gradle.java.installations.auto-download=false\n";
-                fs.writeFileSync(propsPath, props, "utf8");
+                props += "\org.gradle.java.installations.auto-download=false\n";
+                fs.writeFileSync(props-Path, props, "utf8");
               }
             }
-          '
+          ''
       - name: Decode and Verify Release Keystore
         env:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
-            echo "Eksik secret var: KEYSTORE_B64, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS ve RELEASE_KEY_PASSWORD dolu olmali."
-            exit 1
-          fi
-          echo "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "${{ github.workspace }}/android/app/release.keystore"
-          ls -lh "${{ github.workspace }}/android/app/release.keystore"
-          keytool -list -v -keystore "${{ github.workspace }}/android/app/release.keystore" -alias "$RELEASE_KEY_ALIAS" -storepass "$RELEASE_KEYSTORE_PASSWORD" -keypass "$RELEASE_KEY_PASSWORD" | grep -E "Alias name|SHA1"
-      - name: Configure Release Signing in build.gradle
-        run: node scripts/patch-gradle.js
-      - name: Build Signed Release AAB
-        working-directory: android
-        env:
-          GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dorg.gradle.daemon=false"
+          RELEASE_KEY_ALIAS: ${{HÙXÜ™]Ë”‘SPTÑWÒÑVWĞSPTÈ_Bˆ‘SPTÑWÒÑVWÔTÔÕÓÔ‘ˆ	ŞÒ6V7&WG2å$TÄT4Uô´U•õ55tõ$B×Ğ¢&öã¢À¢–b²×¢"D´U•5Dõ$Uô#cB"ÒÇÂ²×¢"E$TÄT4Uô´U•5Dõ$Uõ55tõ$B"ÒÇÂ²×¢"E$TÄT4Uô´U•ôÄ”2"ÒÇÂ²×¢"E$TÄT4Uô´U•õ55tõ$B"ÒÂ°¢V6†ò$V·6–²6V7&WBf#¢´U•5Dõ$Uô#cBÂ$TÄT4Uô´U•5Dõ$Uõ55tõ$BÂ$TÄT4Uô´U•ôÄ”2fR$TÄT4Uô´U•õ55õ$BFöÇRöÆÖÆ’â ¢W†—B¢f¢V6†ò"D´U•5Dõ$Uô#cB"ÂG"ÖBu³§76S¥ÒrÂ&6ScBÖBâ"G·²v—F‡V"çv÷&·76R×ÒöæG&ö–Bö÷&VÆV6Ræ¶W—7F÷&R ¢Ç2ÖÆ‚"G·²v—F‡V"çv÷&·76R×ÒöæG&ö–Bö÷&VÆV6Ræ¶W—7F÷&R ¢¶W—FööÂÖÆ—7B×bÖ¶W—7F÷&R"G·²v—F‡V"çv÷&·76R×ÒöæG&ö–Bö÷&VÆV6Ræ¶W—7F÷&R"ÖÆ–2"E$TÄT4Uô´U•ôÄ”2"×7F÷&W72"E$TÄT4Uô´U•5Dõ$Uõ55tõ$B"Ö¶W—72"E$TÄT4Uô´U•õ55tõ$B"Âw&WÔR$Æ–2æÖWÅ4„ ¢ÒæÖS¢6öæf–wW&R&VÆV6R6–væ–ær–â'V–ÆBæw&FÆP¢'Vã¢æöFR67&—G2÷F6‚Öw&FÆRæ§0¢ÒæÖS¢'V–ÆB6–væVB&VÆV6R ¢v÷&¶–ærÖF—&V7F÷'“¢æG&ö–@¢Vçc ¢u$DÄEEOPTS: "-Xmq4g -XX:MaxMetaspaceSize=1g -Dorg.gradle.daemon=false"
           RELEASE_STORE_FILE: "${{ github.workspace }}/android/app/release.keystore"
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEPTASSWORD: ${{ secrets.RELEPTASSPORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS } }
+          RELEPTPASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD• }}
         run: ./gradlew bundleRelease --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: patron-release-aab
-          path: android/app/build/outputs/bundle/release/*.aab
+          path: android/app/build/outputs/bundle/release/*.sab
