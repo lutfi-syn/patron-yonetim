@@ -22,13 +22,17 @@ jobs:
       - name: Decode and Verify Release Keystore
         env:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          STORE_PASS: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
+            echo "Eksik secret var: KEYSTORE_B64, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS ve RELEASE_KEY_PASSWORD dolu olmali."
+            exit 1
+          fi
           echo "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "${{ github.workspace }}/android/app/release.keystore"
           ls -lh "${{ github.workspace }}/android/app/release.keystore"
-          keytool -list -v -keystore "${{ github.workspace }}/android/app/release.keystore" -alias "$KEY_ALIAS" -storepass "$STORE_PASS" -keypass "$KEY_PASS" | grep -E "Alias name|SHA1"
+          keytool -list -v -keystore "${{ github.workspace }}/android/app/release.keystore" -alias "$RELEASE_KEY_ALIAS" -storepass "$RELEASE_KEYSTORE_PASSWORD" -keypass "$RELEASE_KEY_PASSWORD" | grep -E "Alias name|SHA1"
       - name: Configure Release Signing in build.gradle
         run: node scripts/patch-gradle.js
       - name: Build Signed Release AAB
@@ -36,7 +40,7 @@ jobs:
         env:
           GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dorg.gradle.daemon=false"
           RELEASE_STORE_FILE: "${{ github.workspace }}/android/app/release.keystore"
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew bundleRelease --stacktrace
