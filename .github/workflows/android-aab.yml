@@ -19,6 +19,25 @@ jobs:
           java-version: 17
       - run: npm ci || npm install
       - run: npx expo prebuild --platform android --no-install
+      - name: Fix Gradle Toolchain Resolver
+        run: |
+          node -e '
+            const fs = require("fs");
+            const settingsPath = "node_modules/@react-native/gradle-plugin/settings.gradle.kts";
+            if (fs.existsSync(settingsPath)) {
+              let content = fs.readFileSync(settingsPath, "utf8");
+              content = content.replace(/.*foojay-resolver-convention.*/g, "// $&");
+              fs.writeFileSync(settingsPath, content, "utf8");
+            }
+            const propsPath = "android/gradle.properties";
+            if (fs.existsSync(propsPath)) {
+              let props = fs.readFileSync(propsPath, "utf8");
+              if (!props.includes("org.gradle.java.installations.auto-download")) {
+                props += "\norg.gradle.java.installations.auto-download=false\n";
+                fs.writeFileSync(propsPath, props, "utf8");
+              }
+            }
+          '
       - name: Decode and Verify Release Keystore
         env:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
