@@ -12,17 +12,18 @@ const signingBlock = `
             }
         }`;
 
-if (g.includes("signingConfigs {")) {
+if (g.includes("signingConfigs {") && !g.includes('System.getenv("RELEASE_STORE_FILE")')) {
   g = g.replace(/signingConfigs\s*\{/, "signingConfigs {" + signingBlock);
 }
 
-g = g.replace(/buildTypes\s*\{[\s\S]*?release\s*\{([\s\S]*?)signingConfig\s+signingConfigs\.\w+/, (m) =>
-  m.replace(/signingConfig\s+signingConfigs\.\w+/, "signingConfig signingConfigs.release")
+g = g.replace(
+  /(buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?)signingConfig\s+signingConfigs\.\w+/,
+  "$1signingConfig signingConfigs.release"
 );
 
-if (!g.includes("signingConfig signingConfigs.release")) {
+if (!/buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig\s+signingConfigs\.release/.test(g)) {
   g = g.replace(/(buildTypes\s*\{[\s\S]*?release\s*\{)/, "$1\n            signingConfig signingConfigs.release");
 }
 
 fs.writeFileSync(p, g, "utf8");
-console.log("android/app/build.gradle imzalama blogu guncellendi.");
+console.log("build.gradle signingConfigs.release ve buildTypes.release guncellendi.");
